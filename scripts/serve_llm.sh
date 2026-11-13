@@ -28,7 +28,7 @@ profile_args() {
       # so 64k fits on the GPU and the agent's KV survives a vision request.
       # 2 slots in one unified KV pool: vision runs next to the agent turn instead of
       # evicting it; --no-cache-idle-slots stops the server from swapping the idle agent
-      # slot out to RAM (that cost ~10 s per swap back).
+      # slot out to RAM and back (0.28 s vs 0.13 s here, once ~10 s on battery).
       echo -m "$MODELS_DIR/Qwen3.5-4B-Q4_K_M.gguf" \
            --mmproj "$MODELS_DIR/Qwen3.5-4B-mmproj-F16.gguf" \
            -c 65536 -ctk q8_0 -ctv q8_0 -fa on \
