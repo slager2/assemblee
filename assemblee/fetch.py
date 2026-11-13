@@ -42,7 +42,7 @@ MIMES = {"image/jpeg", "image/png", "image/webp"}
 EXT_MIME = {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png", "webp": "image/webp"}
 DEFAULT_PROVIDERS = ("openverse", "wikimedia")
 # licences that allow reuse with modification; NC/ND are excluded by the default Openverse filter
-CLEAR_LICENSES = re.compile(r"^(cc[ -]?by(-sa)?|cc0|public domain|pdm|cc[ -]?pdm)", re.I)
+CLEAR_LICENSES = re.compile(r"^\s*(cc[ -]?by([ -]sa)?|cc0|public domain|pdm|cc[ -]?pdm)([ -]?[\d.]+)?(\s+\w+)?\s*$", re.I)  # whole string: rejects NC / ND
 
 _openverse_lock = threading.Lock()
 _wikimedia_lock = threading.Lock()  # Wikimedia media servers answer 429 to parallel bursts: one at a time
@@ -306,7 +306,7 @@ def _load_rejected(dest) -> dict:
     return json.loads(p.read_text()) if p.exists() else {}
 
 
-def download(results, dest_dir, max_images=30, group="web", on_event=None, workers=4, timeout=30):
+def download(results, dest_dir, max_images=30, group="web", on_event=None, workers=4, timeout=30, allow_unclear=False):
     """Downloads results into <dest>/<group>/<slug>.jpg (a result may carry its own "group").
     Size cap 15 MB, timeouts + retries, verified and re-encoded with Pillow (RGB JPEG, long side <= 1920),
     near-duplicates (dHash) dropped. Updates <dest>/credits.json keyed by asset id "<group>/<slug>".
@@ -318,6 +318,11 @@ def download(results, dest_dir, max_images=30, group="web", on_event=None, worke
     rejected = _load_rejected(dest)
     seen_urls = {url_key(c["image_url"]) for c in credits.values() if c.get("image_url")} | {url_key(u) for u in rejected}
     hashes = [int(c["dhash"], 16) for c in credits.values() if c.get("dhash")]
+    if not allow_unclear:  # only licences that allow reuse with modification, unless the caller opts in
+        skipped = [r for r in results if not r.get("license_clear", bool(CLEAR_LICENSES.match(str(r.get("license") or ""))))]
+        if skipped and on_event:
+            on_event("warning", {"message": f"пропущено {len(skipped)} картинок без открытой лицензии (NC/ND/неизвестно)"})
+        results = [r for r in results if r not in skipped]
     todo = []
     for r in results:
         if url_key(r["image_url"]) not in seen_urls:
