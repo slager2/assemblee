@@ -84,6 +84,19 @@ def contact_sheet(frames, labels, cols=None, tile_w=216, start=1):
     return buf.getvalue()
 
 
+def frame_flags(png):
+    """Cheap pixel check, no model: 'почти белый' / 'почти чёрный' frames (blown-out glow, full vignette, empty dark shot)."""
+    from PIL import Image, ImageStat
+    im = Image.open(io.BytesIO(png)).convert("L").resize((108, 192))
+    st = ImageStat.Stat(im)
+    mean, std = st.mean[0], st.stddev[0]
+    if mean > 225 and std < 30:
+        return "почти белый (засвет)"
+    if mean < 18 and std < 14:
+        return "почти чёрный"
+    return ""
+
+
 def text_match(read, expected):
     """How much of the expected text the vision model managed to read (0..1), order-insensitive by words."""
     import difflib
@@ -729,6 +742,8 @@ class Agent:
                 self.ev.emit("frame", path=self.ev.rel(path), clip=None, seconds=None, verdict=None)
             n = len(self.edl.shots)
             # the look step gets only what a viewer gets: the pictures and the words; no parameters, no harness notes
+            flags = {i: frame_flags(png) for i, png in enumerate(frames, 1)}
+            flagged = "".join(f"кадр {i}: {f}; " for i, f in flags.items() if f)
             listing = "\n".join(f"{i} | {s.section} | {s.seconds} с | {self.expected_text(s)[:60]} | "
                                 + ("карточка" if s.kind == "card" else self.edl.catalog.get(s.asset, {}).get("what", "")[:70])
                                 for i, s in enumerate(self.edl.shots, 1))
@@ -742,6 +757,7 @@ class Agent:
                     "(слева направо, сверху вниз; если листов несколько — они идут подряд), красная цифра = номер кадра в монтажном листе, внизу секция и картинка. Проверь, подходит ли картинка к подписи по смыслу (колонка «что на картинке»).\n\n"
                     f"ЗАДАЧА:\n{self.task}\n\nРАСКАДРОВКА:\n{json.dumps(self.storyboard, ensure_ascii=False)}\n\n"
                     f"КАДРЫ (номер | секция | секунды | текст | что на картинке):\n{listing}\n\n"
+                    + (f"Замер яркости (без модели): {flagged}\n\n" if flagged else "")
                     + (f"Прошлый раунд: ты написал «{last['critique']}», правки: {json.dumps(last['results'], ensure_ascii=False)[:1000]}. "
                        "Это новый лист после правок: оцени заново, не повторяй старую критику, если это уже исправлено.\n\n" if last else "")
                     + "Посмотри на ролик целиком: держит ли он задачу и раскадровку, понятна ли история, нет ли однообразия "
