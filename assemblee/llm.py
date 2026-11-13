@@ -2,6 +2,7 @@
 import base64
 import io
 import json
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -19,6 +20,7 @@ class LLM:
     def __init__(self, base=LLM_URL, timeout=900):
         self.base, self.timeout = base.rstrip("/"), timeout
         self.totals = {"requests": 0, "prompt_tokens": 0, "completion_tokens": 0, "seconds": 0.0}
+        self._lock = threading.Lock()
 
     def _post(self, path, body):
         req = urllib.request.Request(self.base + path, json.dumps(body).encode(), {"Content-Type": "application/json"})
@@ -74,10 +76,11 @@ class LLM:
         dt = time.time() - t0
         usage = r.get("usage", {})
         timings = r.get("timings", {})
-        self.totals["requests"] += 1
-        self.totals["prompt_tokens"] += usage.get("prompt_tokens", 0)
-        self.totals["completion_tokens"] += usage.get("completion_tokens", 0)
-        self.totals["seconds"] += dt
+        with self._lock:  # requests run from parallel threads
+            self.totals["requests"] += 1
+            self.totals["prompt_tokens"] += usage.get("prompt_tokens", 0)
+            self.totals["completion_tokens"] += usage.get("completion_tokens", 0)
+            self.totals["seconds"] += dt
         msg = r["choices"][0]["message"]
         content = msg.get("content") or ""
         if "</think>" in content:  # a template/parser that left the thoughts in content
@@ -86,7 +89,8 @@ class LLM:
             msg["content"] = content.strip()
         reasoning = msg.get("reasoning_content") or ""
         reasoning_tokens = self.count_tokens(reasoning) if reasoning else 0
-        self.totals["reasoning_tokens"] = self.totals.get("reasoning_tokens", 0) + reasoning_tokens
+        with self._lock:
+            self.totals["reasoning_tokens"] = self.totals.get("reasoning_tokens", 0) + reasoning_tokens
         return {"message": msg, "reasoning": reasoning, "reasoning_tokens": reasoning_tokens, "finish_reason": r["choices"][0].get("finish_reason"), "usage": usage, "seconds": round(dt, 2),
                 "tokens_per_second": round(timings.get("predicted_per_second") or (usage.get("completion_tokens", 0) / dt if dt else 0), 1),
                 "prompt_per_second": round(timings.get("prompt_per_second", 0) or 0, 1)}
