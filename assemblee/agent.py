@@ -185,17 +185,19 @@ class Agent:
 
     def shot_schema(self, group="any"):
         ids = [k for k in self.edl.catalog if group == "any" or k.startswith(group + "/")] or list(self.edl.catalog)
-        return {"type": "object", "properties": {"shots": {"type": "array", "minItems": 2, "maxItems": 8, "items": {"type": "object", "properties": {
-            "kind": {"type": "string", "enum": ["picture", "card"]},
-            "asset": {"type": "string", "enum": ids + [""]},
-            "seconds": {"type": "number"},
+        picture = {"type": "object", "additionalProperties": False, "properties": {
+            "kind": {"type": "string", "enum": ["picture"]}, "asset": {"type": "string", "enum": ids}, "seconds": {"type": "number"},
             "motion": {"type": "string", "enum": MOTIONS}, "look": {"type": "string", "enum": list(LOOKS)},
-            "caption": {"type": "string", "description": "по-русски, до 60 символов"}, "caption_style": {"type": "string", "enum": CAPTION_STYLES},
-            "caption_position": {"type": "string", "enum": POSITIONS},
+            "caption": {"type": "string", "description": "по-русски, до 60 символов, можно пусто"},
+            "caption_style": {"type": "string", "enum": CAPTION_STYLES}, "caption_position": {"type": "string", "enum": POSITIONS},
             "effects": {"type": "array", "maxItems": 2, "items": {"type": "string", "enum": list(EFFECTS)}},
-            "card_title": {"type": "string"}, "card_subtitle": {"type": "string"}, "card_style": {"type": "string", "enum": CARD_STYLES},
             "transition_out": {"type": "string", "enum": TRANSITIONS}},
-            "required": ["kind", "asset", "seconds", "transition_out"]}}}, "required": ["shots"]}
+            "required": ["kind", "asset", "seconds", "motion", "look", "caption", "caption_style", "caption_position", "effects", "transition_out"]}
+        card = {"type": "object", "additionalProperties": False, "properties": {
+            "kind": {"type": "string", "enum": ["card"]}, "card_title": {"type": "string"}, "card_subtitle": {"type": "string"},
+            "card_style": {"type": "string", "enum": CARD_STYLES}, "seconds": {"type": "number"}, "transition_out": {"type": "string", "enum": TRANSITIONS}},
+            "required": ["kind", "card_title", "card_subtitle", "card_style", "seconds", "transition_out"]}
+        return {"type": "object", "properties": {"shots": {"type": "array", "minItems": 2, "maxItems": 8, "items": {"anyOf": [picture, card]}}}, "required": ["shots"]}
 
     def _build_section(self, k, sec, schema):
         prev = self.edl.sections[k - 1].name if k else "(начало ролика)"
@@ -205,7 +207,7 @@ class Agent:
                                             f"КАРТИНКИ (id | что | настроение):\n{self.assets_text}\n\n"
                                             f"Сейчас собери ТОЛЬКО секцию «{sec.name}» (до неё: {prev}, после: {nxt}). Цель: {sec.goal}. "
                                             f"Визуальный стиль: {getattr(sec, 'visual_style', '')}. Длительность секции около {sec.target_seconds} с.\n"
-                                            "Кадр kind=picture: asset (id из списка), seconds 0.8-6, motion, look, по желанию caption (до 60 символов) со стилем и позицией, effects (0-2).\n"
+                                            "Кадр kind=picture: asset (id из списка), seconds 0.8-6, motion и look (меняй их от кадра к кадру под настроение секции), caption (до 60 символов, может быть пустой) со стилем и позицией, effects (0-2).\n"
                                             "Кадр kind=card: полноэкранная карточка, asset=\"\", card_title (до 28 символов), card_subtitle, card_style, seconds 1.5-3.\n"
                                             "transition_out — переход в следующий кадр (cut — склейка). Подбирай картинки по смыслу описаний, не повторяй одну картинку. "
                                             + ("Это интро или финал: бери по одной картинке из разных групп. " if getattr(sec, "asset_group", "any") == "any" else
@@ -265,7 +267,15 @@ class Agent:
                     shots.remove(s)
                     warnings.append(f"removed repeated picture {s.asset}")
                 seen.add(s.asset)
-            # 5) section entrance transition
+            # 5) not every cut is a transition: keep at most 2 inside the section
+            inner = [s for s in shots[:-1] if s.transition_out != "cut"]
+            for s in inner[2:]:
+                s.transition_out = "cut"
+            if len(inner) > 2:
+                warnings.append(f"kept 2 of {len(inner)} transitions inside the section")
+            if shots[-1].transition_out != "cut" and k + 1 < len(self.edl.sections):
+                shots[-1].transition_out = "cut"  # the next section sets its own entrance transition
+            # 6) section entrance transition
             if k and self.edl.shots and self.edl.shots[-1].transition_out == "cut":
                 self.edl.shots[-1].transition_out = getattr(sec, "transition_in", "cross_dissolve")
                 self.edl.shots[-1].transition_seconds = 0.6
@@ -276,14 +286,22 @@ class Agent:
             self.emit_timeline()
 
     def action_schema(self):
-        from .tools import POLISH_TOOLS
-        props = {"op": {"type": "string", "enum": [t["function"]["name"] for t in POLISH_TOOLS if t["function"]["name"] != "done"]}}
+        """anyOf with one exact object per operation: the grammar only allows that op's own fields; sections and shots are enums."""
+        n = max(1, len(self.edl.shots))
+        shot = {"type": "integer", "minimum": 1, "maximum": n}
+        section = {"type": "string", "enum": [x.name for x in self.edl.sections]}
+        variants = []
         for t in POLISH_TOOLS:
-            for k, v in t["function"]["parameters"]["properties"].items():
-                props.setdefault(k, v)
+            f = t["function"]
+            if f["name"] == "done":
+                continue
+            props = {"op": {"type": "string", "enum": [f["name"]]}}
+            for k, v in f["parameters"]["properties"].items():
+                props[k] = shot if k in ("shot",) else section if k == "section" else ({"type": "integer", "minimum": 1, "maximum": n} if k == "to" else v)
+            variants.append({"type": "object", "properties": props, "required": ["op"] + f["parameters"]["required"], "additionalProperties": False})
         return {"type": "object", "properties": {
             "thoughts": {"type": "string", "description": "одно-два предложения: что улучшаешь и зачем"},
-            "actions": {"type": "array", "maxItems": 8, "items": {"type": "object", "properties": props, "required": ["op"]}},
+            "actions": {"type": "array", "maxItems": 10, "items": {"anyOf": variants}},
             "done": {"type": "boolean"}}, "required": ["thoughts", "actions", "done"]}
 
     def action_rounds(self, phase, intro, handler, max_rounds):
