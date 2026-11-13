@@ -300,7 +300,7 @@ RECIPES = [
      "music_hint": "warm_pad", "why_it_works": "выразительный, «сюжетный» грейдинг — тренд 2025; смена температуры заметна даже боковым зрением",
      "source_url": S["grade_trends"]},
     {"id": "kuleshov_contrast", "name_ru": "Эффект Кулешова", "moods": ["dark", "story"],
-     "when_to_use": "один и тот же кадр героя меняет смысл от соседнего кадра: страх, потом радость",
+     "when_to_use": "один и тот же кадр героя меняет смысл от соседнего кадра (угроза — страх, награда — радость)",
      "structure": [
          {"role": "face", "kind": "picture", "seconds": 1.5, "asset_hint": "нейтральный кадр героя", "camera": _cam(110, 118, "linear"), "transition_out": "cut"},
          {"role": "threat", "kind": "picture", "seconds": 1.5, "asset_hint": "угроза", "camera": _cam(100, 130, "punch"),
