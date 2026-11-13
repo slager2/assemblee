@@ -476,7 +476,7 @@ class Agent:
                 props[k] = shot if k in ("shot",) else section if k == "section" else ({"type": "integer", "minimum": 1, "maximum": n} if k == "to" else v)
             variants.append({"type": "object", "properties": props, "required": ["op"] + f["parameters"]["required"], "additionalProperties": False})
         return {"type": "object", "properties": {
-            "thoughts": {"type": "string", "description": "одно-два предложения: что улучшаешь и зачем"},
+            "thoughts": {"type": "string", "maxLength": 500, "description": "одно-два предложения: что улучшаешь и зачем"},
             "actions": {"type": "array", "maxItems": 10, "items": {"anyOf": variants}},
             "done": {"type": "boolean"}}, "required": ["thoughts", "actions", "done"]}
 
@@ -563,22 +563,25 @@ class Agent:
             path.write_bytes(sheet)
             self.ev.emit("frame", path=self.ev.rel(path), clip=None, seconds=None, verdict=None)
             n = len(self.edl.shots)
+            # the look step gets only what a viewer gets: the pictures and the words; no parameters, no harness notes
+            listing = "\n".join(f"{i} | {s.section} | {s.seconds} с | {self.expected_text(s)[:60]}" for i, s in enumerate(self.edl.shots, 1))
             look_schema = {"type": "object", "properties": {
-                "critique": {"type": "string", "description": "2-4 предложения: что в монтаже плохо и что хорошо"},
+                "critique": {"type": "string", "maxLength": 600, "description": "2-4 предложения: что в монтаже плохо и что хорошо"},
                 "problems": {"type": "array", "maxItems": 6, "items": {"type": "object", "properties": {
-                    "shot": {"type": "integer", "minimum": 1, "maximum": n}, "problem": {"type": "string"}, "fix": {"type": "string"}},
+                    "shot": {"type": "integer", "minimum": 1, "maximum": n}, "problem": {"type": "string", "maxLength": 200}, "fix": {"type": "string", "maxLength": 200}},
                     "required": ["shot", "problem", "fix"], "additionalProperties": False}},
                 "verdict": {"type": "string", "enum": ["готово", "нужны правки"]}}, "required": ["critique", "problems", "verdict"]}
             text = ("Ты режиссёр этого ролика. На картинке — контактный лист монтажа: по одному кадру из каждого плана по порядку "
                     "(слева направо, сверху вниз), красная цифра = номер кадра в монтажном листе, внизу секция и картинка.\n\n"
                     f"ЗАДАЧА:\n{self.task}\n\nРАСКАДРОВКА:\n{json.dumps(self.storyboard, ensure_ascii=False)}\n\n"
-                    f"МОНТАЖНЫЙ ЛИСТ:\n{json.dumps(self.edl.summary(), ensure_ascii=False)[:6000]}\n\n{self.notes_text()}"
+                    f"КАДРЫ (номер | секция | секунды | текст):\n{listing}\n\n"
                     + (f"Прошлый раунд: ты написал «{last['critique']}», правки: {json.dumps(last['results'], ensure_ascii=False)[:1000]}. "
                        "Это новый лист после правок: оцени заново, не повторяй старую критику, если это уже исправлено.\n\n" if last else "")
                     + "Посмотри на ролик целиком: держит ли он задачу и раскадровку, понятна ли история, нет ли однообразия "
                     "(одни и те же картинки, цвета, движения, подписи), сильные ли начало и финал, видна ли главная мысль каждой секции, "
                     "не мешают ли эффекты, не слишком ли тёмные или пустые кадры. critique — 2-4 предложения по-русски. "
-                    "problems — до 6 конкретных проблем: номер кадра, что не так, как исправить. verdict — «готово», если править нечего.")
+                    "Суди по тому, что видно на картинках. problems — до 6 конкретных проблем: номер кадра, что не так, как исправить. "
+                    "verdict — «готово», если править нечего.")
             msgs = [{"role": "system", "content": SYSTEM},
                     {"role": "user", "content": [LLM.image_part(sheet, max_side=1280), {"type": "text", "text": text}]}]
             try:
@@ -594,7 +597,7 @@ class Agent:
             schema = self.action_schema()
             schema["properties"]["actions"]["maxItems"] = 8
             listing = "\n".join(f"- кадр {x['shot']}: {x['problem']} → {x['fix']}" for x in problems)
-            act_text = (f"ЗАДАЧА:\n{self.task}\n\nМОНТАЖНЫЙ ЛИСТ:\n{json.dumps(self.edl.summary(), ensure_ascii=False)[:6000]}\n\n"
+            act_text = (f"ЗАДАЧА:\n{self.task}\n\nМОНТАЖНЫЙ ЛИСТ:\n{json.dumps(self.edl.summary(), ensure_ascii=False)[:6000]}\n\n{self.notes_text()}"
                         f"Ты посмотрел весь ролик как режиссёр. Критика: {look.get('critique', '')}\nПроблемы:\n{listing}\n\n"
                         "Преврати каждую проблему в правку (op = имя операции и её поля; номера кадров — из монтажного листа). "
                         "Одна проблема — одна-две правки, без повторов одной и той же операции. Потом done=true.")
