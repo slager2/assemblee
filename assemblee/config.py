@@ -23,4 +23,4 @@ FONT_BOLD = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
 FONT_BOOK = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
 FONT_SANS = "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf"
 FONT_MONO = "/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf"
-RENDER_VERSION = 3  # bump when rendering of captions/cards/pictures changes
+RENDER_VERSION = 4  # bump when rendering of captions/cards/pictures changes

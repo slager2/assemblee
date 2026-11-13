@@ -117,7 +117,7 @@ def caption_png(text, style, position) -> Path:
             size -= 4
 
     if style == "retro2011":
-        f, lines, sz = fit(FONT_SANS, 60, text, W - 220, 3)
+        f, lines, sz = fit(FONT_SANS, 74, text, W - 200, 3)
         lh = int(sz * 1.25)
         bw = max(d.textlength(l, font=f) for l in lines) + 70
         bh = lh * len(lines) + 44
