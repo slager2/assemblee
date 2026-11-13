@@ -53,7 +53,8 @@ function fmtDur(sec) {
   return hh ? `${hh}:${p(mm)}:${p(ss)}` : `${p(mm)}:${p(ss)}`;
 }
 function fmtTC(sec) {
-  const m = Math.floor(sec / 60), s = sec - m * 60;
+  const t = Math.round((Number(sec) || 0) * 10) / 10;
+  const m = Math.floor(t / 60), s = Math.round((t - m * 60) * 10) / 10;
   return `${m}:${s < 10 ? "0" : ""}${s.toFixed(s % 1 ? 1 : 0)}`;
 }
 const fmtInt = (n) => Number(n || 0).toLocaleString("ru-RU");
@@ -232,7 +233,8 @@ function onToolResult(ev) {
   const r = d.result;
   if (!ok) {
     const msg = r && typeof r === "object" ? (r.error || r.message) : r;
-    t.el.append(h("div", { class: "err-line" }, String(msg ?? "ошибка без сообщения")));
+    const text = msg != null ? String(msg) : (r && typeof r === "object" ? preview(r, 200) : "") || "ошибка без сообщения";
+    t.el.append(h("div", { class: "err-line" }, text));
   }
   t.body.append(h("div", { class: "sec" }, "Результат"), jsonPre(r ?? null));
 }
