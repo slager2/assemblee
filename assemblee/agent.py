@@ -461,7 +461,7 @@ class Agent:
         return ("ЗАМЕЧАНИЯ ОБВЯЗКИ (только информация, решаешь ты; исправляй, если согласен):\n- " + "\n- ".join(n) +
                 "\n(длительность меняют retime_section — вся секция — или update_shot с seconds)\n\n") if n else ""
 
-    def action_schema(self):
+    def action_schema(self, ops=None):
         """anyOf with one exact object per operation: the grammar only allows that op's own fields; sections and shots are enums."""
         n = max(1, len(self.edl.shots))
         shot = {"type": "integer", "minimum": 1, "maximum": n}
@@ -469,7 +469,7 @@ class Agent:
         variants = []
         for t in polish_tools(self.mode):
             f = t["function"]
-            if f["name"] == "done":
+            if f["name"] == "done" or (ops and f["name"] not in ops):
                 continue
             props = {"op": {"type": "string", "enum": [f["name"]]}}
             for k, v in f["parameters"]["properties"].items():
@@ -480,9 +480,9 @@ class Agent:
             "actions": {"type": "array", "maxItems": 10, "items": {"anyOf": variants}},
             "done": {"type": "boolean"}}, "required": ["thoughts", "actions", "done"]}
 
-    def action_rounds(self, phase, intro, handler, max_rounds):
+    def action_rounds(self, phase, intro, handler, max_rounds, ops=None):
         """The model answers with a JSON list of edit actions; the harness applies them and reports back."""
-        schema = self.action_schema()
+        schema = self.action_schema(ops)
         msgs = [{"role": "system", "content": SYSTEM}, {"role": "user", "content": intro}]
         for rnd in range(max_rounds):
             try:
@@ -655,7 +655,7 @@ class Agent:
                                 f"look {self.edl.shots[i].look}; зрение прочитало «{v.get('read', '')}»" for i, v in bad)
             intro = (f"Проверка зрением: на этих кадрах текст читается плохо:\n{listing}\n\nИсправь каждый: убери мешающие эффекты (effects=[]), "
                      "смени стиль/позицию подписи или look на более спокойный, сократи текст. Верни действия, потом done=true.")
-            self.action_rounds("review", intro, handler, 2)
+            self.action_rounds("review", intro, handler, 2, ops=["update_shot"])  # readability fixes only
 
     def export(self):
         self.ev.emit("phase", name="export", note="финальная сборка и рендер")
