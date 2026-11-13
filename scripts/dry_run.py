@@ -35,9 +35,9 @@ class FakeLLM:
         props = schema["properties"]
         if "sections" in props:
             out = {"title": "Dry run", "concept": "test", "sections": [
-                {"name": "intro", "goal": "зацепить", "target_seconds": 4, "music": "dark_drone", "music_db": -10, "visual_style": "glitch", "asset_group": "any", "transition_in": "glitch"},
-                {"name": "middle", "goal": "показать", "target_seconds": 8, "music": "chiptune", "music_db": -10, "visual_style": "bright", "asset_group": "server-beast", "transition_in": "whip"},
-                {"name": "ending", "goal": "финал", "target_seconds": 4, "music": "epic", "music_db": -8, "visual_style": "dark", "asset_group": "spider", "transition_in": "flash"}]}
+                {"name": "intro", "goal": "зацепить", "target_seconds": 4, "music": "dark_drone", "music_db": -10, "visual_style": "glitch", "asset_group": "any", "transition_in": "glitch", "key_message": "зацепка"},
+                {"name": "middle", "goal": "показать", "target_seconds": 8, "music": "chiptune", "music_db": -10, "visual_style": "bright", "asset_group": "server-beast", "transition_in": "whip", "key_message": "Тестовая подпись"},
+                {"name": "ending", "goal": "финал", "target_seconds": 4, "music": "epic", "music_db": -8, "visual_style": "dark", "asset_group": "spider", "transition_in": "flash", "key_message": "финальная мысль"}]}
         elif "shots" in props:
             ids = props["shots"]["items"]["anyOf"][0]["properties"]["asset"]["enum"]
             out = {"shots": [{"kind": "card", "asset": "", "seconds": 2, "card_title": "Заголовок", "card_subtitle": "подзаголовок", "card_style": "glitch",
@@ -51,14 +51,14 @@ class FakeLLM:
                                                   {"op": "update_shot", "shot": 3, "effects": [], "motion": "zoom_out"}], "done": True}
             if "читается плохо" in text:
                 out["actions"] = [{"op": "update_shot", "shot": 2, "effects": []}]
-        elif "text_readable" in props:
-            out = {"text_readable": self.rng.random() > 0.3, "seen": "кадр с подписью"}
+        elif "main_text" in props:
+            out = {"main_text": "Тестовая подпись" if self.rng.random() > 0.3 else "", "seen": "кадр с подписью"}
         else:
             out = {}
         return out, self._r(json.dumps(out, ensure_ascii=False))
 
     def vision(self, png, question, schema, max_side=960):
-        return {"text_readable": self.rng.random() > 0.3, "seen": "кадр с подписью"}
+        return {"main_text": "Тестовая подпись" if self.rng.random() > 0.3 else "", "seen": "кадр с подписью"}
 
 
 assets = Path(sys.argv[1] if len(sys.argv) > 1 else "/home/slager/Рабочий стол/refs")
