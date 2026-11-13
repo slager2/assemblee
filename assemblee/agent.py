@@ -43,7 +43,8 @@ READ_FLOOR = 0.8  # hard minimum for a shot with text, in every guardrails mode
 
 SYSTEM = ("Ты опытный монтажёр коротких вертикальных роликов (Reels/Shorts/TikTok). Ты принимаешь творческие решения: "
           "структура, выбор кадров, ритм, подписи, стиль, музыка. Технику (кадрирование, анимацию, звук) делает программа. "
-          "Пиши подписи по-русски, коротко и цепко. Не повторяй один и тот же кадр без причины. Меняй ритм: быстрые и медленные кадры, разные движения камеры.")
+          "Пиши подписи по-русски, коротко и цепко. Не повторяй один и тот же кадр без причины. Меняй ритм: быстрые и медленные кадры, разные движения камеры."
+          + " Ответы в JSON пиши компактно, одной строкой, без отступов и переносов.")
 
 
 def brief_summary(path: Path, limit=1400) -> str:
@@ -608,8 +609,8 @@ class Agent:
                 props[k] = shot if k in ("shot",) else section if k == "section" else ({"type": "integer", "minimum": 1, "maximum": n} if k == "to" else v)
             variants.append({"type": "object", "properties": props, "required": ["op"] + f["parameters"]["required"], "additionalProperties": False})
         return {"type": "object", "properties": {
-            "thoughts": {"type": "string", "maxLength": 500, "description": "одно-два предложения: что улучшаешь и зачем"},
-            "actions": {"type": "array", "maxItems": 10, "items": {"anyOf": variants}},
+            "thoughts": {"type": "string", "maxLength": 200, "description": "одно-два предложения: что улучшаешь и зачем"},
+            "actions": {"type": "array", "maxItems": 6, "items": {"anyOf": variants}},
             "done": {"type": "boolean"}}, "required": ["thoughts", "actions", "done"]}
 
     def action_rounds(self, phase, intro, handler, max_rounds, ops=None):
@@ -683,7 +684,7 @@ class Agent:
                    "Обвязка больше ничего не подгоняет сама: длительности секций, главные мысли в кадре и время на чтение — на тебе. ")
         intro = (f"ЗАДАЧА:\n{self.task}\n\nМонтаж собран. Монтажный лист:\n{json.dumps(self.edl.summary(), ensure_ascii=False)}\n\n" + ask +
                  "Верни список действий (op = имя операции и её поля). Делай только нужные правки; когда всё готово — done=true.")
-        self.action_rounds("polish", intro, handler, max(1, self.max_polish_turns // 3))
+        self.action_rounds("polish", intro, handler, max(1, min(2, self.max_polish_turns // 3)))  # measured: rounds 3+ rarely help
 
     def director(self, rounds=2):
         """The vision model watches a contact sheet of the whole edit (one numbered frame per shot) next to the
