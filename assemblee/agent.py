@@ -11,7 +11,9 @@ The model only makes decisions; everything that needs arithmetic or craft is don
 """
 import json
 import re
+import io
 import shutil
+import subprocess
 import time
 import traceback
 from concurrent.futures import ThreadPoolExecutor
@@ -21,6 +23,7 @@ from . import assets as assets_mod
 from . import vocab
 from .cards import CARD_STYLES, render_card
 from .compiler import compile_edl, picture_media
+from .config import FONT_BOLD, REPO
 from .edl import EDL, EFFECTS, LIMITS, LOOKS, MOTIONS, MUSIC, TRANSITIONS, Section
 from .events import EventLog
 from .llm import LLM, LLMError
@@ -28,6 +31,10 @@ from .media import CAPTION_STYLES, POSITIONS, h, thumb
 from .tools import POLISH_TOOLS, PolishTools, polish_tools
 
 GUARDRAILS = ("full", "light", "off")
+SERVE = REPO / "scripts" / "serve_llm.sh"
+PROFILE_FILE = REPO / ".cache" / "llm-server.profile"  # written by serve_llm.sh
+PLANNERS = {"9b": "planner"}  # --planner value -> serve_llm.sh profile
+THINK_NEEDS_PROFILE = False  # the plain profiles (--reasoning off) still honour chat_template_kwargs.enable_thinking per request
 READ_FLOOR = 0.8  # hard minimum for a shot with text, in every guardrails mode
 
 SYSTEM = ("Ты опытный монтажёр коротких вертикальных роликов (Reels/Shorts/TikTok). Ты принимаешь творческие решения: "
@@ -46,6 +53,30 @@ def brief_summary(path: Path, limit=1400) -> str:
 
 def norm_text(t):
     return re.sub(r"[^0-9a-zа-яё]+", " ", str(t).lower().replace("ё", "е")).strip()
+
+
+def contact_sheet(frames, labels, cols=None, tile_w=216):
+    """One tile per shot, numbered, in reading order: the director's view of the whole edit (JPEG bytes)."""
+    from PIL import Image, ImageDraw, ImageFont
+    n = len(frames)
+    cols = cols or max(1, min(6, round((n * 9 / 16) ** 0.5 * 1.25)))
+    rows = -(-n // cols)
+    tile_h, pad = tile_w * 16 // 9, 6
+    sheet = Image.new("RGB", (cols * (tile_w + pad) + pad, rows * (tile_h + pad) + pad), (24, 24, 24))
+    big, small = ImageFont.truetype(FONT_BOLD, 34), ImageFont.truetype(FONT_BOLD, 15)
+    for k, (png, label) in enumerate(zip(frames, labels)):
+        im = Image.open(io.BytesIO(png)).convert("RGB").resize((tile_w, tile_h))
+        d = ImageDraw.Draw(im)
+        num = str(k + 1)
+        bw = d.textlength(num, font=big) + 14
+        d.rectangle([0, 0, bw, 44], fill=(230, 30, 30))
+        d.text((7, 3), num, font=big, fill=(255, 255, 255))
+        d.rectangle([0, tile_h - 22, tile_w, tile_h], fill=(0, 0, 0))
+        d.text((5, tile_h - 20), label[:26], font=small, fill=(255, 255, 255))
+        sheet.paste(im, (pad + (k % cols) * (tile_w + pad), pad + (k // cols) * (tile_h + pad)))
+    buf = io.BytesIO()
+    sheet.save(buf, "JPEG", quality=90)
+    return buf.getvalue()
 
 
 def text_match(read, expected):
@@ -80,6 +111,9 @@ class Agent:
         self.mode, self.fetch = mode, fetch
         self.guardrails, self.think, self.think_budget, self.planner = guardrails, bool(think), int(think_budget), planner
         self.director_on = (guardrails != "full") if director is None else bool(director)
+        if planner and planner not in PLANNERS:
+            raise ValueError(f"planner must be one of {list(PLANNERS)}")
+        self.swaps, self.phase_seconds = [], {}
         self.turn = 0
         self.counters = {"tool_calls": 0, "errors": 0}
         self.t0 = time.time()
@@ -167,6 +201,35 @@ class Agent:
     def changed(self):
         self._thumbs = {i: self.thumb_for(s) for i, s in enumerate(self.edl.shots)}
         self.emit_timeline()
+
+    # ---------- model swaps (serve_llm.sh profiles; only at phase boundaries) ----------
+    @staticmethod
+    def current_profile():
+        return PROFILE_FILE.read_text().strip() if PROFILE_FILE.exists() else None
+
+    def profile_for(self, role):
+        base = PLANNERS[self.planner] if role == "planner" and self.planner else "agent"
+        return base + ("-think" if self.think and THINK_NEEDS_PROFILE else "")
+
+    def use_model(self, role, phase):
+        """role "vision" (4B + mmproj) or "planner"; swaps the llama-server profile if needed and logs the cost."""
+        if not self.planner and not (self.think and THINK_NEEDS_PROFILE):
+            return
+        want, have = self.profile_for(role), self.current_profile()
+        if have == want and self.llm.health():
+            return
+        if have is None and self.llm.health():
+            raise RuntimeError("llama-server was not started by scripts/serve_llm.sh; model swaps need it "
+                               f"(stop it and run scripts/serve_llm.sh start {self.profile_for('vision')})")
+        self.ev.emit("phase", name=phase, note=f"меняю модель: {have or '—'} → {want}")
+        t = time.time()
+        r = subprocess.run([str(SERVE), "start", want], capture_output=True, text=True, timeout=600)
+        dt = round(time.time() - t, 1)
+        if r.returncode:
+            raise RuntimeError(f"model swap to {want} failed: {(r.stderr or r.stdout)[-400:]}")
+        self.swaps.append({"from": have, "to": want, "seconds": dt, "before": phase})
+        self.step("swap_model", {"from": have, "to": want}, {"seconds": dt, "model": self.llm.model_name(), "server": r.stdout.strip()[-160:]})
+        self.ev.emit("phase", name=phase, note=f"модель {want} готова за {dt} с")
 
     # ---------- phases ----------
     def explore(self):
@@ -427,24 +490,28 @@ class Agent:
                 self.ev.emit("warning", message=str(e)[:300])
                 return
             msgs.append({"role": "assistant", "content": json.dumps(out, ensure_ascii=False)})
-            results = []
-            for k, act in enumerate(out.get("actions", [])):
-                op = act.pop("op", "")
-                args = {key: v for key, v in act.items() if v not in (None, "") or key == "caption"}
-                cid = f"{phase}-{rnd}-{k}"
-                self.ev.emit("tool_call", id=cid, name=op, args=args)
-                t = time.time()
-                res = handler.dispatch(op, args)
-                ok = not (isinstance(res, dict) and "error" in res)
-                self.counters["tool_calls"] += 1
-                self.counters["errors"] += 0 if ok else 1
-                self.ev.emit("tool_result", id=cid, name=op, ok=ok, result=res, seconds=round(time.time() - t, 3))
-                results.append({"op": op, **(res if isinstance(res, dict) else {"result": res})})
+            results = self.apply_actions(phase, rnd, out, handler)
             if out.get("done") or not out.get("actions"):
                 return
             msgs.append({"role": "user", "content": f"Результаты: {json.dumps(results, ensure_ascii=False)[:2500]}\n\n"
                                                     f"Монтажный лист сейчас: {json.dumps(self.edl.summary(), ensure_ascii=False)[:6000]}\n\n" + self.notes_text() +
                                                     "Если нужно ещё что-то — следующие действия, иначе done=true и пустой список."})
+
+    def apply_actions(self, phase, rnd, out, handler):
+        results = []
+        for k, act in enumerate(out.get("actions", [])):
+            op = act.pop("op", "")
+            args = {key: v for key, v in act.items() if v not in (None, "") or key == "caption"}
+            cid = f"{phase}-{rnd}-{k}"
+            self.ev.emit("tool_call", id=cid, name=op, args=args)
+            t = time.time()
+            res = handler.dispatch(op, args)
+            ok = not (isinstance(res, dict) and "error" in res)
+            self.counters["tool_calls"] += 1
+            self.counters["errors"] += 0 if ok else 1
+            self.ev.emit("tool_result", id=cid, name=op, ok=ok, result=res, seconds=round(time.time() - t, 3))
+            results.append({"op": op, **(res if isinstance(res, dict) else {"result": res})})
+        return results
 
     def polish(self):
         self.ev.emit("phase", name="polish", note="доводка: эффекты, звуки, порядок, музыка")
@@ -459,6 +526,48 @@ class Agent:
         intro = (f"ЗАДАЧА:\n{self.task}\n\nМонтаж собран. Монтажный лист:\n{json.dumps(self.edl.summary(), ensure_ascii=False)}\n\n" + ask +
                  "Верни список действий (op = имя операции и её поля). Делай только нужные правки; когда всё готово — done=true.")
         self.action_rounds("polish", intro, handler, max(1, self.max_polish_turns // 3))
+
+    def director(self, rounds=2):
+        """The vision model watches a contact sheet of the whole edit (one numbered frame per shot) next to the
+        storyboard, writes a critique and answers with polish actions; at most `rounds` rounds."""
+        handler = PolishTools(self.edl, self.changed, guardrails=self.guardrails)
+        schema = self.action_schema()
+        schema["properties"] = {"critique": {"type": "string", "description": "2-4 предложения: что в монтаже плохо и что хорошо"}, **schema["properties"]}
+        schema["required"] = ["critique"] + schema["required"]
+        last = None
+        for rnd in range(rounds):
+            self.ev.emit("phase", name="director", note=f"режиссёр смотрит весь монтаж, раунд {rnd + 1}")
+            compiled = compile_edl(self.edl, on_progress=lambda m: None)
+            try:
+                frames = [compiled.frame_png(a + (b - a) * 0.55) for a, b in compiled.times]
+            finally:
+                compiled.close()
+            sheet = contact_sheet(frames, [s.section + " · " + (s.title if s.kind == "card" else s.asset.split("/")[-1]) for s in self.edl.shots])
+            path = self.run_dir / "frames" / f"director-r{rnd + 1}.jpg"
+            path.write_bytes(sheet)
+            self.ev.emit("frame", path=self.ev.rel(path), clip=None, seconds=None, verdict=None)
+            text = ("Ты режиссёр этого ролика. На картинке — контактный лист монтажа: по одному кадру из каждого плана по порядку "
+                    "(слева направо, сверху вниз), красная цифра = номер кадра в монтажном листе, внизу секция и картинка.\n\n"
+                    f"ЗАДАЧА:\n{self.task}\n\nРАСКАДРОВКА:\n{json.dumps(self.storyboard, ensure_ascii=False)}\n\n"
+                    f"МОНТАЖНЫЙ ЛИСТ:\n{json.dumps(self.edl.summary(), ensure_ascii=False)[:6000]}\n\n{self.notes_text()}"
+                    + (f"Прошлый раунд: ты написал «{last['critique']}» и сделал правки {json.dumps(last['results'], ensure_ascii=False)[:1200]}. "
+                       "Это новый лист после правок.\n\n" if last else "")
+                    + "Посмотри на ролик целиком: держит ли он задачу и раскадровку, понятна ли история, нет ли однообразия "
+                    "(одни и те же картинки, цвета, движения, подписи), сильные ли начало и финал, видна ли главная мысль каждой секции, "
+                    "не мешают ли эффекты. critique — 2-4 предложения по-русски. actions — только правки, которые реально улучшат ролик "
+                    "(op = имя операции и её поля). Если ролик уже хорош — пустой список и done=true.")
+            msgs = [{"role": "system", "content": SYSTEM},
+                    {"role": "user", "content": [LLM.image_part(sheet, max_side=1280), {"type": "text", "text": text}]}]
+            try:
+                out = self.ask_json("director", msgs, schema, max_tokens=2500, temperature=0.4)
+            except LLMError as e:
+                self.ev.emit("warning", message=str(e)[:300])
+                return
+            self.step("director_critique", {"round": rnd + 1, "shots": len(frames)}, {"critique": out.get("critique", ""), "actions": len(out.get("actions", []))})
+            results = self.apply_actions("director", rnd, out, handler)
+            last = {"critique": out.get("critique", "")[:400], "results": results}
+            if out.get("done") or not out.get("actions"):
+                return
 
     def review(self):
         for rnd in range(self.review_rounds):
@@ -519,15 +628,19 @@ class Agent:
 
     def run(self):
         self.ev.emit("run_start", task=self.task, model=self.llm.model_name(), tools=[t["function"]["name"] for t in POLISH_TOOLS], vocab=self.mode, fetch=self.fetch,
-                     assets_dir=str(self.assets_dir), briefs=[str(b) for b in self.briefs], seconds=self.seconds, slots=self.slots)
+                     assets_dir=str(self.assets_dir), briefs=[str(b) for b in self.briefs], seconds=self.seconds, slots=self.slots,
+                     guardrails=self.guardrails, think=self.think, think_budget=self.think_budget, planner=self.planner, director=self.director_on)
         ok, reason, out = False, "", None
         try:
-            self.explore()
-            self.plan()
-            self.build()
-            self.polish()
-            self.review()
-            out = self.export()
+            steps = [("swap", lambda: self.use_model("vision", "explore")), ("explore", self.explore),
+                     ("swap", lambda: self.use_model("planner", "plan")), ("plan", self.plan), ("build", self.build), ("polish", self.polish),
+                     ("swap", lambda: self.use_model("vision", "director" if self.director_on else "review"))]
+            steps += [("director", self.director)] if self.director_on else []
+            steps += [("review", self.review), ("export", self.export)]
+            for name, fn in steps:  # model swaps only happen at these phase boundaries: 4B (vision) -> planner -> 4B
+                t = time.time()
+                out = fn()
+                self.phase_seconds[name] = round(self.phase_seconds.get(name, 0) + time.time() - t, 1)
             ok, reason = True, "exported"
         except KeyboardInterrupt:
             reason = "interrupted"
@@ -535,7 +648,8 @@ class Agent:
             reason = f"{type(e).__name__}: {e}"
             self.ev.emit("error", message=reason[:500], where=traceback.format_exc()[-800:])
         summary = {"ok": ok, "reason": reason, "output": str(out) if out else None, "seconds": getattr(self, "edl", None) and self.edl.total(),
-                   "wall_seconds": round(time.time() - self.t0, 1), "llm": dict(self.llm.totals), **self.counters,
+                   "wall_seconds": round(time.time() - self.t0, 1), "llm": dict(self.llm.totals), **self.counters, "swaps": self.swaps,
+                   "phase_seconds": self.phase_seconds,
                    "edl": self.edl.to_dict() if hasattr(self, "edl") else None}
         (self.run_dir / "summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=1, default=str))
         self.ev.emit("run_end", ok=ok, reason=reason, summary={k: v for k, v in summary.items() if k != "edl"})

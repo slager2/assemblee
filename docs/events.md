@@ -27,9 +27,9 @@ the UI, so either can be restarted independently.
 | type | data |
 |---|---|
 | `run_start` | `{"task": str, "model": str, "tools": [names]}` |
-| `phase` | `{"name": "explore" \| "plan" \| "build" \| "polish" \| "review" \| "export", "note": str}` |
+| `phase` | `{"name": "explore" \| "plan" \| "build" \| "polish" \| "director" \| "review" \| "export", "note": str}` (model swaps are announced as notes of the next phase) |
 | `llm_request` | `{"turn": int, "messages": int, "prompt_tokens_est": int}` |
-| `llm_response` | `{"turn": int, "content": str, "tool_calls": [{"name", "arguments"}], "usage": {"prompt_tokens", "completion_tokens"}, "seconds": float, "tokens_per_second": float}` |
+| `llm_response` | `{"turn": int, "content": str, "tool_calls": [{"name", "arguments"}], "usage": {"prompt_tokens", "completion_tokens"}, "seconds": float, "tokens_per_second": float, "reasoning_tokens": int}` (with thinking, `content` starts with `[мысли] <thoughts, truncated>`, then the answer) |
 | `tool_call` | `{"id": str, "name": str, "args": {}}` |
 | `tool_result` | `{"id": str, "name": str, "ok": bool, "result": {}, "seconds": float}` |
 | `timeline` | `{"total_seconds": float, "clips": [{"n", "kind": "clip"\|"card", "label", "start", "end", "look", "motion", "effects": [], "caption": str\|null, "thumb": "frames/…png"\|null}], "transitions": [[after_n, kind, seconds]], "music": [{"mood", "from", "to", "db"}], "sfx": [{"kind", "clip", "at"}]}` |

@@ -2,8 +2,8 @@
 "use strict";
 
 const $ = (sel) => document.querySelector(sel);
-const PHASES = ["explore", "plan", "build", "polish", "review", "export"];
-const PHASE_RU = { explore: "Разведка", plan: "План", build: "Сборка", polish: "Полировка", review: "Проверка", export: "Экспорт" };
+const PHASES = ["explore", "plan", "build", "polish", "director", "review", "export"];
+const PHASE_RU = { explore: "Разведка", plan: "План", build: "Сборка", polish: "Полировка", director: "Режиссёр", review: "Проверка", export: "Экспорт" };
 const STATUS_RU = { running: "идёт", done: "готово", failed: "ошибка", stale: "нет активности", "": "—" };
 const MOOD_COLORS = {
   calm: "#3d8f8a", спокойно: "#3d8f8a", спокойная: "#3d8f8a",
