@@ -105,6 +105,9 @@ def _param(row, pid, value, what, warnings):
             value = value[0]
         return _num(value, (spec["min"], spec["max"]), spec["min"], what, warnings)
     if t == "choice":
+        short = {o[5:].lower(): o for o in spec["options"] if o.startswith("From ")}
+        if str(value).strip().lower() in short:
+            return short[str(value).strip().lower()]
         return _pick(value, spec["options"], spec["options"][0], what, warnings)
     if t == "color":
         return _color(value, "#ffffff", what, warnings)
@@ -156,6 +159,8 @@ def effect_engine_params(fx):
         hz = dict(out).get("horizontal", 60)
         vz = [round(x * H / W) for x in hz] if isinstance(hz, list) else round(hz * H / W)
         out.append(("vertical", vz))
+    if fx["id"] == "clone":  # N x N tiles keep the 9:16 aspect, so the frame stays covered
+        out.append(("rows", dict(out).get("columns", 2)))
     return out
 
 
@@ -387,7 +392,7 @@ def schema_fragments(mode="strict", effect_params=True):
     else:
         fx_item = {"type": "object", "additionalProperties": False, "properties": {"id": {"type": "string", "enum": list(RICH_EFFECTS)}, "amount": amount}, "required": ["id"]}
     common_tparams = {"type": "object", "properties": {
-        "amount": amount, "direction": {"type": "string", "enum": ["From North", "From East", "From South", "From West"]},
+        "amount": amount, "direction": {"type": "string", "enum": ["north", "east", "south", "west"]},
         "color": {"type": "string", "pattern": "^#[0-9a-fA-F]{6}$"}}}
     grade = {"type": "object", "additionalProperties": False, "properties": {
         **{k: _num_schema(a, b) for k, (a, b) in GRADE.items()},

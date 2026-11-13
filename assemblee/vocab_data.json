@@ -1951,7 +1951,7 @@
     },
     "amount": {
      "type": "number",
-     "min": 30,
+     "min": 50,
      "max": 100,
      "default": 100.0,
      "animatable": true
@@ -2015,7 +2015,7 @@
    "main": "length",
    "preset": {
     "direction": 90,
-    "length": 25
+    "length": 60
    },
    "params": {
     "direction": {
@@ -2027,8 +2027,8 @@
     },
     "length": {
      "type": "number",
-     "min": 0,
-     "max": 60,
+     "min": 20,
+     "max": 160,
      "default": 0.0,
      "animatable": true
     }
@@ -2066,13 +2066,13 @@
    "desc": "out-of-focus camera lens blur",
    "main": "percent",
    "preset": {
-    "percent": 15
+    "percent": 30
    },
    "params": {
     "percent": {
      "type": "number",
-     "min": 0,
-     "max": 40,
+     "min": 10,
+     "max": 70,
      "default": 0.0,
      "animatable": true
     }
@@ -2104,8 +2104,8 @@
     },
     "similarity": {
      "type": "number",
-     "min": 10,
-     "max": 50,
+     "min": 15,
+     "max": 40,
      "default": 10.0,
      "animatable": true
     }
@@ -2178,14 +2178,14 @@
    "desc": "pixelate into big square blocks (8-bit / censorship)",
    "main": "horizontal",
    "preset": {
-    "horizontal": 60,
+    "horizontal": 30,
     "sharp": true
    },
    "params": {
     "horizontal": {
      "type": "number",
-     "min": 12,
-     "max": 200,
+     "min": 10,
+     "max": 80,
      "default": 10.0,
      "animatable": true
     }
@@ -2198,7 +2198,7 @@
    "desc": "line-art sketch: only the edges stay",
    "main": "blend",
    "preset": {
-    "blend": 20
+    "blend": 35
    },
    "params": {
     "blend": {
@@ -2376,23 +2376,25 @@
    "id": "transform",
    "name": "Transform",
    "category": "Transform",
-   "desc": "skew / rotate the picture (slanted, off-kilter)",
+   "desc": "skew / rotate the picture (slanted, off-kilter), zoomed so no edges show",
    "main": "skew",
    "preset": {
-    "skew": 8
+    "skew": 6,
+    "scale_width": 135,
+    "scale_height": 135
    },
    "params": {
     "skew": {
      "type": "number",
-     "min": -20,
-     "max": 20,
+     "min": -10,
+     "max": 10,
      "default": 0.0,
      "animatable": true
     },
     "rotation": {
      "type": "number",
-     "min": -15,
-     "max": 15,
+     "min": -10,
+     "max": 10,
      "default": 0.0,
      "animatable": true
     }
@@ -2431,7 +2433,7 @@
    "id": "lens_distortion",
    "name": "Lens Distortion",
    "category": "Distort",
-   "desc": "fisheye bulge (negative) or pinch (positive) lens",
+   "desc": "fisheye bulge (negative) or pinch (positive) lens, with black rounded edges like an old CRT",
    "main": "curvature",
    "preset": {
     "curvature": -35
@@ -2554,21 +2556,7 @@
    "id": "four_color_gradient",
    "name": "4-Color Gradient",
    "category": "Generate",
-   "desc": "colourful four-corner gradient washed over the picture",
-   "main": "opacity",
-   "preset": {
-    "opacity": 35,
-    "blend": 300
-   },
-   "params": {
-    "opacity": {
-     "type": "number",
-     "min": 15,
-     "max": 60,
-     "default": 100.0,
-     "animatable": true
-    }
-   }
+   "excluded": "covers the picture completely (opacity does not blend)"
   },
   {
    "id": "ramp",
@@ -2704,9 +2692,13 @@
    "main": "amount",
    "preset": {
     "shape": "Linear",
-    "size": 450,
-    "feather": 300,
-    "amount": 22
+    "center": [
+     540,
+     960
+    ],
+    "size": 350,
+    "feather": 250,
+    "amount": 55
    },
    "params": {
     "shape": {
@@ -2726,8 +2718,8 @@
     },
     "amount": {
      "type": "number",
-     "min": 5,
-     "max": 40,
+     "min": 15,
+     "max": 80,
      "default": 20.0,
      "animatable": true
     }
@@ -3206,14 +3198,14 @@
    "desc": "soft bloom glow around highlights",
    "main": "intensity",
    "preset": {
-    "threshold": 55,
-    "intensity": 120
+    "threshold": 45,
+    "intensity": 220
    },
    "params": {
     "threshold": {
      "type": "number",
-     "min": 35,
-     "max": 85,
+     "min": 30,
+     "max": 80,
      "default": 60.0,
      "animatable": true
     },
@@ -3226,8 +3218,8 @@
     },
     "intensity": {
      "type": "number",
-     "min": 40,
-     "max": 220,
+     "min": 60,
+     "max": 400,
      "default": 100.0,
      "animatable": true
     }
@@ -3246,21 +3238,22 @@
    "desc": "painterly brush strokes, like an oil painting",
    "main": "length",
    "preset": {
-    "size": 2,
-    "length": 10
+    "size": 3,
+    "length": 18,
+    "density": 2
    },
    "params": {
     "size": {
      "type": "number",
-     "min": 1,
-     "max": 4,
+     "min": 2,
+     "max": 5,
      "default": 2.0,
      "animatable": true
     },
     "length": {
      "type": "number",
-     "min": 4,
-     "max": 20,
+     "min": 8,
+     "max": 30,
      "default": 10.0,
      "animatable": true
     }
@@ -3273,13 +3266,13 @@
    "desc": "embossed relief with colours kept, like a metal stamp",
    "main": "relief",
    "preset": {
-    "relief": 2
+    "relief": 4
    },
    "params": {
     "relief": {
      "type": "number",
-     "min": 0.5,
-     "max": 4,
+     "min": 1,
+     "max": 8,
      "default": 1.0,
      "animatable": true
     },
@@ -3412,28 +3405,7 @@
    "id": "spin",
    "name": "Spin",
    "category": "Transform",
-   "desc": "picture spins once over the shot (zoomed so no edges show)",
-   "main": "amount",
-   "preset": {
-    "amount": 90,
-    "scale": 150
-   },
-   "params": {
-    "amount": {
-     "type": "number",
-     "min": -360,
-     "max": 360,
-     "default": 360.0,
-     "animatable": true
-    },
-    "scale": {
-     "type": "number",
-     "min": 110,
-     "max": 180,
-     "default": 100.0,
-     "animatable": true
-    }
-   }
+   "excluded": "rotating a vertical frame shows black corners unless zoomed 2x (use spin transitions)"
   },
   {
    "id": "spacer",
@@ -3491,32 +3463,24 @@
    "id": "clone",
    "name": "Clone",
    "category": "Utility",
-   "desc": "grid of copies of the picture (pop-art)",
-   "main": "rows",
+   "desc": "grid of N x N copies of the picture (pop-art)",
+   "main": "columns",
    "preset": {
     "columns": 2,
-    "rows": 3,
-    "gap": 8
+    "gap": 6
    },
    "params": {
     "columns": {
      "type": "number",
-     "min": 1,
+     "min": 2,
      "max": 4,
      "default": 2.0,
-     "animatable": true
-    },
-    "rows": {
-     "type": "number",
-     "min": 1,
-     "max": 6,
-     "default": 1.0,
      "animatable": true
     },
     "gap": {
      "type": "number",
      "min": 0,
-     "max": 30,
+     "max": 20,
      "default": 0.0,
      "animatable": true
     },
@@ -3647,7 +3611,7 @@
    "id": "block_dissolve",
    "name": "Block Dissolve",
    "category": "Video Effects",
-   "desc": "picture breaks into missing blocks (animate 0 to 100 to dissolve it away)",
+   "desc": "picture breaks into missing blocks (animate [0, 70] to crumble it away)",
    "main": "completion",
    "preset": {
     "completion": 30,
@@ -3757,13 +3721,13 @@
    "desc": "animated digital glitch: block displacement, colour channels, scanlines",
    "main": "amplitude",
    "preset": {
-    "amplitude": 15
+    "amplitude": 30
    },
    "params": {
     "amplitude": {
      "type": "number",
-     "min": 5,
-     "max": 50,
+     "min": 10,
+     "max": 80,
      "default": 0.0,
      "animatable": true
     },
