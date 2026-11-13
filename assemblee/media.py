@@ -1,6 +1,7 @@
 """Picture preparation and caption rendering (Pillow + ffmpeg). Pure functions, cached on disk."""
 import hashlib
 import os
+import re
 import subprocess
 from pathlib import Path
 
@@ -141,7 +142,8 @@ def _legacy_caption(text, style, position):
             d.text(((W - tw) / 2, y0 + i * lh), l, font=f, fill=(255, 214, 63, 255) if i == 0 else (255, 255, 255, 255),
                    stroke_width=10, stroke_fill=(20, 20, 30, 255))
     elif style == "system":
-        body = "\n".join(f"[{l.strip('[] ')}]" for l in text.split("\n") if l.strip())
+        lines_in = [re.sub(r"^\[?\s*СИСТЕМА\s*\]?\s*:?\s*", "", l.strip(), flags=re.I) for l in text.split("\n")]  # header is drawn already
+        body = "\n".join(f"[{l.strip('[] ')}]" for l in lines_in if l.strip("[] "))
         f, lines, sz = fit(FONT_MONO, 52, body, W - 230, 5)
         lh = int(sz * 1.35)
         bw, bh = W - 140, lh * len(lines) + 120
