@@ -55,7 +55,7 @@ class FetchError(RuntimeError):
 
 # ---------------------------------------------------------------- http
 
-def _get(url, timeout=20, retries=2, max_bytes=None, accept="application/json", headers=None):
+def _get(url, timeout=12, retries=1, max_bytes=None, accept="application/json", headers=None):
     """GET with retries (5xx, 429 with Retry-After, network errors). Returns (bytes, headers)."""
     last = None
     for attempt in range(retries + 1):
@@ -89,6 +89,42 @@ def _get(url, timeout=20, retries=2, max_bytes=None, accept="application/json", 
                 time.sleep(1.5 * (attempt + 1))
                 continue
     raise last
+
+
+# ---------------------------------------------------------------- provider circuit breaker
+_DEAD = {}  # provider name -> reason; a provider that answered 5xx/403/timeout is skipped for the rest of the process
+_DEAD_LOCK = threading.Lock()
+_DEAD_RE = re.compile(r"HTTP (5\d\d|403)|timed? ?out|TimeoutError|Connection(Reset|Refused)|RemoteDisconnected", re.I)
+
+
+def provider_dead(name):
+    with _DEAD_LOCK:
+        return _DEAD.get(name)
+
+
+def call_provider(name, fn, *args, on_error=None):
+    """Runs one provider search; a provider that is down is skipped instead of costing ~60 s per query."""
+    if provider_dead(name):
+        return []
+    try:
+        return fn(*args)
+    except Exception as e:
+        msg = str(e)
+        if _DEAD_RE.search(msg):
+            with _DEAD_LOCK:
+                _DEAD[name] = msg[:120]
+            msg = f"{msg} — {name} пропускается до конца прогона"
+        on_error and on_error(name, msg)
+        return []
+
+
+def search_parallel(providers, fn_for, on_error=None):
+    """{provider: results} with every provider queried at the same time."""
+    from concurrent.futures import ThreadPoolExecutor
+    names = [p for p in providers if not provider_dead(p)]
+    with ThreadPoolExecutor(max_workers=max(1, len(names))) as pool:
+        futs = {n: pool.submit(call_provider, n, fn_for(n), on_error=on_error) for n in names}
+        return {n: f.result() for n, f in futs.items()}
 
 
 def _get_json(url, **kw):
@@ -235,13 +271,7 @@ def search_images(query, n=10, orientation=None, providers=DEFAULT_PROVIDERS, on
     {provider, id, title, page_url, image_url, width, height, license, license_url, author, attribution,
      mime, license_clear}. Filters: short side >= 600 px (when known), jpeg/png/webp, dedupe by URL.
     orientation: None | "vertical" | "horizontal" | "square"."""
-    per = {}
-    for name in providers:
-        try:
-            per[name] = PROVIDERS[name](query, max(n * 2, 10), orientation)
-        except Exception as e:
-            per[name] = []
-            on_error and on_error(name, str(e))
+    per = search_parallel(providers, lambda name: (lambda: PROVIDERS[name](query, max(n * 2, 10), orientation)), on_error)
     out, seen = [], set()
     queues = [list(v) for v in per.values()]
     while len(out) < n and any(queues):
