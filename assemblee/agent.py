@@ -40,6 +40,23 @@ def brief_summary(path: Path, limit=1400) -> str:
     return (head + ("\n…\nСтиль:\n" + style.group(2)[: limit // 2] if style else ""))[:limit]
 
 
+def norm_text(t):
+    return re.sub(r"[^0-9a-zа-яё]+", " ", str(t).lower().replace("ё", "е")).strip()
+
+
+def text_match(read, expected):
+    """How much of the expected text the vision model managed to read (0..1), order-insensitive by words."""
+    import difflib
+    r, e = norm_text(read), norm_text(expected)
+    if not e:
+        return 1.0
+    if not r:
+        return 0.0
+    words = e.split()
+    hit = sum(1 for w in words if any(difflib.SequenceMatcher(None, w, x).ratio() >= 0.75 for x in r.split()))
+    return max(hit / len(words), difflib.SequenceMatcher(None, r, e).ratio())
+
+
 class Agent:
     def __init__(self, task: str, assets_dir: Path, briefs: list[Path], run_dir: Path, seconds: float = 60, slots: int = 2,
                  llm: LLM | None = None, max_polish_turns=10, review_rounds=2, output_name="video.mp4"):
@@ -83,6 +100,12 @@ class Agent:
         if not ok and isinstance(result, dict) and "error" not in result:
             result = {**result, "error": result.get("message", "проверка не пройдена")}
         self.ev.emit("tool_result", id=sid, name=name, ok=ok, result=result, seconds=0)
+
+    @staticmethod
+    def expected_text(shot):
+        if shot.kind == "card":
+            return shot.title
+        return shot.caption.text if shot.caption else ""
 
     # ---------- timeline events ----------
     def thumb_for(self, shot):
@@ -150,14 +173,15 @@ class Agent:
                 "name": {"type": "string"}, "goal": {"type": "string"}, "target_seconds": {"type": "number"},
                 "music": {"type": "string", "enum": list(MUSIC)}, "music_db": {"type": "number"}, "visual_style": {"type": "string"},
                 "asset_group": {"type": "string", "enum": self.groups + ["any"]},
-                "transition_in": {"type": "string", "enum": TRANSITIONS}},
-                "required": ["name", "goal", "target_seconds", "music", "visual_style", "asset_group", "transition_in"]}}},
+                "transition_in": {"type": "string", "enum": TRANSITIONS},
+                "key_message": {"type": "string", "description": "главная мысль секции, 2-6 слов по-русски; обязательно появится в кадре"}},
+                "required": ["name", "goal", "target_seconds", "music", "visual_style", "asset_group", "transition_in", "key_message"]}}},
             "required": ["title", "concept", "sections"]}
         msgs = [{"role": "system", "content": SYSTEM},
                 {"role": "user", "content": f"ЗАДАЧА:\n{self.task}\n\nДлительность ролика: около {int(self.seconds)} секунд.\n\nМАТЕРИАЛЫ:\n{self.briefs_text}\n\n"
                                             f"КАРТИНКИ (id | что | настроение):\n{self.assets_text}\n\n"
                                             "Сначала придумай раскадровку: 3-8 секций по порядку просмотра (интро и финал тоже секции). "
-                                            "Для каждой: короткое имя (латиницей, без пробелов), цель секции, сколько секунд, музыка, визуальный стиль, "
+                                            "Для каждой: короткое имя (латиницей, без пробелов), key_message — главная мысль секции в 2-6 словах, цель секции, сколько секунд, музыка, визуальный стиль, "
                                             "asset_group — из какой папки картинок брать кадры (any — из любой, для интро и финала), "
                                             "transition_in — переход при входе в секцию (не cut: разные секции должны отличаться). Музыка: "
                                             + ", ".join(MUSIC) + ". Все тексты (title, concept, goal, visual_style) пиши по-русски."}]
@@ -175,10 +199,11 @@ class Agent:
             self.edl.sections[-1].visual_style = s.get("visual_style", "")[:200]
             self.edl.sections[-1].asset_group = s.get("asset_group", "any") if s.get("asset_group") in self.groups else "any"
             self.edl.sections[-1].transition_in = s.get("transition_in", "cross_dissolve") if s.get("transition_in") in TRANSITIONS else "cross_dissolve"
+            self.edl.sections[-1].key_message = re.sub(r"\s+", " ", str(s.get("key_message", ""))).strip()[:40]
         self.storyboard = {"title": sb["title"], "concept": sb["concept"],
                            "sections": [{"name": s.name, "goal": s.goal, "target_seconds": s.target_seconds, "music": s.music,
                                          "visual_style": getattr(s, "visual_style", ""), "asset_group": getattr(s, "asset_group", "any"),
-                                         "transition_in": getattr(s, "transition_in", "cut")} for s in self.edl.sections]}
+                                         "transition_in": getattr(s, "transition_in", "cut"), "key_message": getattr(s, "key_message", "")} for s in self.edl.sections]}
         (self.run_dir / "storyboard.json").write_text(json.dumps(self.storyboard, ensure_ascii=False, indent=1))
         self.step("storyboard", {"seconds": self.seconds}, self.storyboard)
         self.emit_timeline()
@@ -206,7 +231,7 @@ class Agent:
                 {"role": "user", "content": f"ЗАДАЧА:\n{self.task}\n\nМАТЕРИАЛЫ:\n{self.briefs_text}\n\nРАСКАДРОВКА:\n{json.dumps(self.storyboard, ensure_ascii=False)}\n\n"
                                             f"КАРТИНКИ (id | что | настроение):\n{self.assets_text}\n\n"
                                             f"Сейчас собери ТОЛЬКО секцию «{sec.name}» (до неё: {prev}, после: {nxt}). Цель: {sec.goal}. "
-                                            f"Визуальный стиль: {getattr(sec, 'visual_style', '')}. Длительность секции около {sec.target_seconds} с.\n"
+                                            f"Визуальный стиль: {getattr(sec, 'visual_style', '')}. Главная мысль, которая должна прозвучать в подписи или карточке: «{getattr(sec, 'key_message', '')}». Длительность секции около {sec.target_seconds} с.\n"
                                             "Кадр kind=picture: asset (id из списка), seconds 0.8-6, motion и look (меняй их от кадра к кадру под настроение секции), caption (до 60 символов, может быть пустой) со стилем и позицией, effects (0-2).\n"
                                             "Кадр kind=card: полноэкранная карточка, asset=\"\", card_title (до 28 символов), card_subtitle, card_style, seconds 1.5-3.\n"
                                             "transition_out — переход в следующий кадр (cut — склейка). Подбирай картинки по смыслу описаний, не повторяй одну картинку. "
@@ -256,6 +281,14 @@ class Agent:
                 need = round(min(6.0, max(1.2, len(text.strip()) / 14)), 1) if text.strip() else 0
                 if need > s.seconds:
                     s.seconds = need
+            # 2b) the section's key message must be on screen (card at the start; for the last section at the end)
+            key = getattr(sec, "key_message", "")
+            if key and not any(text_match(self.expected_text(x) + " " + (x.subtitle if x.kind == "card" else ""), key) >= 0.6 for x in shots):
+                last = k + 1 == len(self.edl.sections)
+                card = self.edl.make_shot({"card_title": key, "card_style": "final" if last else "minimal", "seconds": 2.5}, sec.name, warnings)
+                if card:
+                    shots.insert(len(shots) if last else 0, card)
+                    warnings.append(f"key message «{key}» was missing: added a card")
             # 3) still far too long: drop shots from the end (keep at least 2)
             while len(shots) > 2 and sum(s.seconds for s in shots) > sec.target_seconds * 1.4:
                 gone = shots.pop()
@@ -360,14 +393,18 @@ class Agent:
                 self.emit_timeline()
             finally:
                 compiled.close()
-            schema = {"type": "object", "properties": {"text_readable": {"type": "boolean"}, "seen": {"type": "string"}}, "required": ["text_readable", "seen"]}
-            q = "Кадр вертикального ролика. text_readable: можно ли легко прочитать главный текст (true/false). seen: что видно, до 12 слов, по-русски."
+            schema = {"type": "object", "properties": {"main_text": {"type": "string"}, "seen": {"type": "string"}}, "required": ["main_text", "seen"]}
+            q = ("Кадр вертикального ролика. main_text: перепиши дословно самый крупный наложенный текст (подпись или заголовок), "
+                 "если его нельзя разобрать — пустая строка. seen: что на картинке, до 10 слов, по-русски.")
 
             def judge(item):
                 i, p = item
                 v = self.llm.vision(p.read_bytes(), q, schema)
-                self.ev.emit("frame", path=self.ev.rel(p), clip=i + 1, seconds=None, verdict=v)
-                return i, v
+                expected = self.expected_text(self.edl.shots[i])
+                score = text_match(v.get("main_text", ""), expected)
+                verdict = {"text_readable": score >= 0.6, "seen": v.get("seen", ""), "read": v.get("main_text", "")[:120], "match": round(score, 2)}
+                self.ev.emit("frame", path=self.ev.rel(p), clip=i + 1, seconds=None, verdict=verdict)
+                return i, verdict
 
             with ThreadPoolExecutor(max_workers=self.slots) as pool:
                 verdicts = list(pool.map(judge, frames))
@@ -378,8 +415,9 @@ class Agent:
             self.step("review", {"round": rnd + 1}, {"checked": len(verdicts), "unreadable": [i + 1 for i, _ in bad],
                                                      "error": f"текст плохо читается на кадрах {[i + 1 for i, _ in bad]}"}, ok=False)
             handler = PolishTools(self.edl, self.changed)
-            listing = "\n".join(f"кадр {i + 1}: {self.edl.shots[i].label()} — подпись «{self.edl.shots[i].caption.text if self.edl.shots[i].caption else self.edl.shots[i].title}», "
-                                f"эффекты {self.edl.shots[i].effects}, look {self.edl.shots[i].look}; зрение увидело: {v.get('seen', '')}" for i, v in bad)
+            listing = "\n".join(f"кадр {i + 1}: {self.edl.shots[i].label()} — нужный текст «{self.expected_text(self.edl.shots[i])}», "
+                                f"стиль {self.edl.shots[i].caption.style if self.edl.shots[i].caption else self.edl.shots[i].card_style}, эффекты {self.edl.shots[i].effects}, "
+                                f"look {self.edl.shots[i].look}; зрение прочитало «{v.get('read', '')}»" for i, v in bad)
             intro = (f"Проверка зрением: на этих кадрах текст читается плохо:\n{listing}\n\nИсправь каждый: убери мешающие эффекты (effects=[]), "
                      "смени стиль/позицию подписи или look на более спокойный, сократи текст. Верни действия, потом done=true.")
             self.action_rounds("review", intro, handler, 2)
