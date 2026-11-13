@@ -164,13 +164,23 @@ class Agent:
         self.ev.emit("llm_stats", tokens_per_second=r["tokens_per_second"], prompt_per_second=r.get("prompt_per_second", 0),
                      kv_used=None, slots_busy=None, vram_mb=None, totals=dict(self.llm.totals))
 
+    THINK_SHARE = {"plan": 0.625, "build": 0.25, "director": 0.0}  # measured: every request used its whole budget
+
+    def think_for(self, phase):
+        """Thinking budget of a phase (tokens; 0 = no thinking): the concept gets the full budget, planning less,
+        each section build a short one, the director's act step none (its thinking happened in the look step)."""
+        if not self.think:
+            return 0
+        return int(self.think_budget * self.THINK_SHARE.get(phase, 1.0))
+
     def ask_json(self, phase, messages, schema, max_tokens=3000, temperature=0.5, retries=2, think=False):
         for attempt in range(retries + 1):
             turn = self._next_turn()
             self.ev.emit("llm_request", turn=turn, phase=phase, messages=len(messages), prompt_tokens_est=sum(len(str(m.get("content", ""))) for m in messages) // 3)
             try:
+                budget = self.think_budget if think is True else int(think or 0)  # think=True: full budget; an int: that many tokens
                 out, r = self.llm.json(messages, schema, max_tokens=max_tokens, temperature=temperature,
-                                       **({"think": True, "think_budget": self.think_budget} if think else {}))
+                                       **({"think": True, "think_budget": budget} if budget > 0 else {}))
                 self._llm_event(r, phase, turn)
                 return out
             except LLMError as e:
@@ -287,7 +297,7 @@ class Agent:
                                             "для фотобанков с открытыми лицензиями — Openverse и Wikimedia Commons, ищи конкретные вещи, а не абстракции) и какую музыку найти "
                                             "(настроения и запросы на английском для Jamendo/ccMixter). Тексты title/logline/why_surprising/style — по-русски.\n\n"
                                             + ideas_mod.hook_ideas(n=6, seed=self.seed)}]
-        c = self.ask_json("concept", msgs, schema, max_tokens=1800, temperature=0.9, think=self.think)
+        c = self.ask_json("concept", msgs, schema, max_tokens=1800, temperature=0.9, think=self.think)  # the idea deserves the full budget
         self.concept = c
         self.image_groups = [{"name": re.sub(r"[^a-z0-9_]+", "_", g["name"].lower()).strip("_")[:24] or f"g{i}", "shows": g["shows"],
                               "queries": g["queries_en"]} for i, g in enumerate(c["picture_groups"])]
@@ -365,7 +375,7 @@ class Agent:
                                             + ". Все тексты (title, concept, goal, visual_style) пиши по-русски."
                                             + "\n\n" + ideas_mod.hook_ideas(n=5 if self.ideas_on else 3, seed=self.seed)
                                             + ("\n\n" + THINK_PLAN if self.think else "")}]
-        sb = self.ask_json("plan", msgs, schema, max_tokens=2500, temperature=0.7, think=self.think)
+        sb = self.ask_json("plan", msgs, schema, max_tokens=2500, temperature=0.7, think=self.think_for("plan"))
         self.hook = sb.get("hook") or {}
         self.ending = cut_words(sb.get("ending", ""), 200)
         total = sum(max(2.0, float(s.get("target_seconds", 8))) for s in sb["sections"]) or 1
@@ -438,7 +448,7 @@ class Agent:
                                                f"Подсказка: для этой секции подходят картинки группы {sec.asset_group}, но можешь брать любые, если так сильнее. ")
                                             + "Все подписи и заголовки — только по-русски, без эмодзи."
                                             + ("\n\n" + THINK_BUILD if self.think else "")}]
-        out = self.ask_json(f"build:{sec.name}", msgs, self.shot_schema(getattr(sec, "asset_group", "any")), max_tokens=2500, temperature=0.6, think=self.think)
+        out = self.ask_json(f"build:{sec.name}", msgs, self.shot_schema(getattr(sec, "asset_group", "any")), max_tokens=2500, temperature=0.6, think=self.think_for("build"))
         return k, out
 
     def snap_to_beats(self, when):
@@ -731,7 +741,7 @@ class Agent:
                         "Одна проблема — одна-две правки, без повторов одной и той же операции. Потом done=true.")
             try:
                 out = self.ask_json("director", [{"role": "system", "content": SYSTEM}, {"role": "user", "content": act_text}],
-                                    schema, max_tokens=2000, temperature=0.3, think=self.think)
+                                    schema, max_tokens=2000, temperature=0.3, think=self.think_for("director"))
             except LLMError as e:
                 self.ev.emit("warning", message=str(e)[:300])
                 return
