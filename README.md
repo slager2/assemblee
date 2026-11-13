@@ -139,3 +139,11 @@ music.beat_snap(durations, beats, offset)             # то же как чис�
 
 Python 3.12 + Pillow + aiohttp, ffmpeg, бинарники FilmCraft 0.20.1 и EffectCraft 0.24.1 (пути в
 `assemblee/config.py`, переопределяются переменными `ASSEMBLEE_*`), llama.cpp `llama-server` с Vulkan/CUDA.
+
+## Шаблоны формы (assemblee/templates.py)
+
+Форму кадра выбирает модель из реестра шаблонов: 16 раскладок картинки (`layout`, `layout_params`, `extra_assets`),
+23 стиля подписей (`caption_style`, `caption_params`: цвет, размер и т.д.), 18 карточек (`card_style`, `card_params`; 7 старых
+через EffectCraft, 11 новых Pillow + ffmpeg). Схема и компактный список для промпта генерируются из реестра
+(`templates.schema_props`, `templates.prompt_section`); параметры целые или enum. Галерея всех шаблонов:
+`python3 scripts/template_gallery.py --out gallery [--ec]`. Старые EDL работают без изменений (`layout` = `auto`).

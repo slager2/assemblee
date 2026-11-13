@@ -10,9 +10,10 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 from . import vocab
-from .cards import CARD_STYLES
+from . import templates
+from .templates import CARD_IDS, CAPTION_IDS
 from .config import AUDIO_DIR
-from .media import CAPTION_STYLES, POSITIONS
+from .media import POSITIONS
 
 LOOKS = {  # Lumetri parameter sets
     "neutral": {},
@@ -49,7 +50,7 @@ LIMITS = {"picture_seconds": (0.6, 8.0), "card_seconds": (1.2, 5.0), "transition
 EMOJI = re.compile("[\U0001F000-\U0001FAFF\u2600-\u27BF\uFE0F\u200d]")
 
 
-STYLE_TAG = re.compile(r"^\s*\[(subtitle|cartoon|retro2011|system|glitch|minimal|final|joining_server)\]\s*", re.I)
+STYLE_TAG = re.compile(r"^\s*\[(" + "|".join(sorted(set(CAPTION_IDS) | set(CARD_IDS), key=len, reverse=True)) + r")\]\s*", re.I)
 
 
 def clean_text(text, limit):
@@ -88,6 +89,7 @@ class Caption:
     text: str
     style: str = "subtitle"
     position: str = "bottom"
+    params: dict = field(default_factory=dict)  # validated template parameters (templates.py): color, size, ...
 
 
 @dataclass
@@ -111,6 +113,11 @@ class Shot:
     speed: float = 100.0  # animated/video pictures only
     transition_params: dict = field(default_factory=dict)
     text_anim: str = "none"  # cards only
+    # template registry (templates.py): "auto" = the old picture fit; extra_assets feed split_screen/triptych/pip/film_strip
+    layout: str = "auto"
+    layout_params: dict = field(default_factory=dict)
+    extra_assets: list = field(default_factory=list)
+    card_params: dict = field(default_factory=dict)
 
     def label(self):
         return self.title if self.kind == "card" else self.asset
@@ -170,9 +177,10 @@ class EDL:
         asset = str(raw.get("asset") or "").strip()
         rich = self.mode == "rich"
         if title and not asset:
+            card_style = templates.resolve_id("card", raw.get("card_style") or raw.get("style"), "minimal", "card_style", warnings)
             tid, tparams = self.transition(raw, warnings)
-            return Shot(section=section, kind="card", title=title[:40], subtitle=clean_text(raw.get("card_subtitle") or raw.get("subtitle"), 80),
-                        card_style=pick(raw.get("card_style") or raw.get("style"), CARD_STYLES, "minimal", "card_style", warnings),
+            return Shot(section=section, kind="card", title=title[:40], subtitle=clean_text(raw.get("card_subtitle") or raw.get("subtitle"), 120),
+                        card_style=card_style, card_params=templates.resolve_params("card", card_style, raw.get("card_params"), warnings),
                         seconds=clamp(raw.get("seconds", 2.5), LIMITS["card_seconds"], 2.5, "card seconds", warnings),
                         transition_out=tid, transition_params=tparams,
                         transition_seconds=clamp(raw.get("transition_seconds", 0.5), LIMITS["transition_seconds"], 0.5, "transition_seconds", warnings),
@@ -186,9 +194,10 @@ class EDL:
             asset = close[0]
         cap = None
         if clean_text(raw.get("caption"), 120):
-            cap = Caption(text=clean_text(str(raw["caption"]).replace("\\n", "\n"), 120),
-                          style=pick(raw.get("caption_style"), CAPTION_STYLES, "subtitle", "caption_style", warnings),
-                          position=pick(raw.get("caption_position"), POSITIONS, "bottom", "caption_position", warnings))
+            cstyle = templates.resolve_id("caption", raw.get("caption_style"), "subtitle", "caption_style", warnings)
+            cap = Caption(text=clean_text(str(raw["caption"]).replace("\\n", "\n"), 120), style=cstyle,
+                          position=pick(raw.get("caption_position"), POSITIONS, "bottom", "caption_position", warnings),
+                          params=templates.resolve_params("caption", cstyle, raw.get("caption_params"), warnings))
         tid, tparams = self.transition(raw, warnings)
         seconds = clamp(raw.get("seconds", 3), LIMITS["picture_seconds"], 3.0, "seconds", warnings)
         shot = Shot(section=section, kind="picture", asset=asset, seconds=seconds,
@@ -196,6 +205,7 @@ class EDL:
                     look=pick(raw.get("look"), LOOKS, "neutral", "look", warnings), caption=cap,
                     effects=self.effects(raw.get("effects"), warnings), transition_out=tid, transition_params=tparams,
                     transition_seconds=clamp(raw.get("transition_seconds", 0.5), LIMITS["transition_seconds"], 0.5, "transition_seconds", warnings))
+        self.apply_layout(shot, raw, warnings)
         if rich:
             shot.grade = vocab.resolve_grade(raw.get("grade"), warnings)
             shot.camera = vocab.resolve_camera(raw.get("camera"), warnings)
@@ -203,6 +213,25 @@ class EDL:
         elif any(raw.get(k) for k in ("grade", "camera", "speed", "text_anim")):
             warnings.append("grade/camera/speed/text_anim are only available in rich mode, ignored")
         return shot
+
+    def apply_layout(self, shot, raw, warnings):
+        """layout + params + extra assets from raw shot fields; unknown ids are fixed, missing extra pictures repeat the main one."""
+        shot.layout = templates.resolve_id("layout", raw.get("layout"), "auto", "layout", warnings) if raw.get("layout") not in (None, "", "auto") else "auto"
+        if shot.layout == "auto":
+            return
+        shot.layout_params = templates.resolve_params("layout", shot.layout, raw.get("layout_params"), warnings)
+        extra = []
+        for a in (raw.get("extra_assets") or [])[:2]:
+            a = str(a)
+            close = a if a in self.catalog else (difflib.get_close_matches(a, list(self.catalog), n=1, cutoff=0.6) or [None])[0]
+            if close:
+                extra.append(close)
+            else:
+                warnings.append(f"extra_assets: unknown '{a}' dropped")
+        shot.extra_assets = extra
+        if is_animated(self.catalog[shot.asset]):
+            warnings.append(f"layout {shot.layout} needs a still picture; animated asset keeps the default fit")
+            shot.layout, shot.layout_params, shot.extra_assets = "auto", {}, []
 
     @staticmethod
     def fit_speed(speed, seconds, warnings):
@@ -290,11 +319,19 @@ class EDL:
                 if s.caption:
                     row["caption"] = s.caption.text[:60]
                     row["caption_style"] = s.caption.style
+                    if s.caption.params:
+                        row["caption_params"] = s.caption.params
+                if s.layout != "auto":
+                    row["layout"] = s.layout
+                    if s.extra_assets:
+                        row["extra_assets"] = s.extra_assets
                 if s.effects:
                     row["effects"] = [({"id": e["id"], **({"amount": e["amount"]} if "amount" in e else {})} if isinstance(e, dict) else e)
                                       for e in s.effects]  # the form the model writes, not engine parameters
             else:
                 row["card_style"] = s.card_style
+                if s.card_params:
+                    row["card_params"] = s.card_params
                 if s.text_anim != "none":
                     row["text_anim"] = s.text_anim
             if s.transition_out != "cut":
