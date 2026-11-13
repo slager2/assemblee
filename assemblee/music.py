@@ -184,18 +184,19 @@ def search_music(query, n=10, providers=DEFAULT_PROVIDERS, min_seconds=MIN_SECON
     {provider, id, title, artist, duration (s), tags, license, license_url, page_url, audio_url, attribution,
      instrumental (True/False/None), bpm_hint (ccMixter), license_clear}. Vocal tracks sink to the end.
     A multi-word query with no hits is retried shorter (first two words, or the longest word)."""
-    per = {}
-    for name in providers:
-        try:
+    from .fetch import search_parallel
+
+    def runner(name):
+        def run():
             res = PROVIDERS[name](query, max(n * 2, 10), min_seconds, max_seconds)
             words = query.split()
             if not res and len(words) > 1:  # Openverse ANDs the words: retry with fewer
                 shorter = " ".join(words[:2]) if len(words) > 2 else max(words, key=len)
                 res = PROVIDERS[name](shorter, max(n * 2, 10), min_seconds, max_seconds)
-            per[name] = sorted((r for r in res if r["license_clear"] or not clear_only), key=_rank)
-        except Exception as e:
-            per[name] = []
-            on_error and on_error(name, str(e))
+            return sorted((r for r in res if r["license_clear"] or not clear_only), key=_rank)
+        return run
+
+    per = search_parallel(providers, runner, on_error)
     out, seen = [], set()
     queues = [list(v) for v in per.values()]
     while len(out) < n and any(queues):
