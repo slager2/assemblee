@@ -16,6 +16,7 @@ gets an entry (kind "music") in <dest>/credits.json, the same file the picture s
 Analysis (no LLM, no numpy) needs only ffmpeg: band energy envelopes at 100 frames/s -> onset strength ->
 autocorrelation tempo -> dynamic-programming beat tracker (Ellis 2007) -> loudest 10 s window = the drop.
 """
+import bisect
 import http.client
 import json
 import math
@@ -449,3 +450,223 @@ def analyse(path, max_seconds=KEEP_SECONDS):
     return {"duration": round(len(energy) * 0.5, 1), "bpm": bpm, "tempo_confidence": conf, "beats": beats,
             "energy": energy, "first_sound": first, "best_start": best, "best_db": best_db,
             "seconds": round(time.time() - t0, 2)}
+
+
+def _analysis_cached(path, cache):
+    p = Path(path)
+    key, mtime = str(p), p.stat().st_mtime
+    hit = cache.get(key)
+    if hit and hit.get("mtime") == mtime:
+        return hit["analysis"]
+    a = analyse(p)
+    cache[key] = {"mtime": mtime, "analysis": a}
+    return a
+
+
+# ---------------------------------------------------------------- gather (model-driven)
+
+QUERY_SCHEMA = {
+    "type": "object",
+    "properties": {"moods": {"type": "array", "minItems": 1, "maxItems": 8, "items": {
+        "type": "object",
+        "properties": {"mood": {"type": "string"},
+                       "queries": {"type": "array", "minItems": 3, "maxItems": 6, "items": {"type": "string"}}},
+        "required": ["mood", "queries"]}}},
+    "required": ["moods"]}
+
+QUERY_PROMPT = """Ты подбираешь фоновую музыку (без слов) для вертикального видеоролика. Задача пользователя:
+«{task}»
+
+Нужные настроения музыки (mood) и что под ними подразумевается:
+{moods}
+
+Для КАЖДОГО настроения дай 3-6 поисковых запросов НА АНГЛИЙСКОМ для каталога свободной музыки (Jamendo, ccMixter):
+1-3 простых слова — жанр, инструмент, настроение, например "acoustic guitar warm", "dark synthwave", "piano emotional",
+"chiptune", "horror ambient", "cinematic epic". Без кавычек, названий песен и имён исполнителей."""
+
+# used when there is no model (or it fails): a few generic queries per word of the mood name
+FALLBACK_QUERIES = {
+    "warm": ["acoustic warm", "piano emotional", "happy ukulele"], "family": ["acoustic family", "warm piano"],
+    "dark": ["dark ambient", "dark synth"], "horror": ["horror ambient", "creepy"], "retro": ["synthwave", "retro 80s"],
+    "epic": ["cinematic epic", "epic orchestral", "trailer"], "chiptune": ["chiptune", "8bit"],
+    "happy": ["happy upbeat", "ukulele"], "sad": ["sad piano", "melancholic"], "calm": ["calm ambient", "lofi chill"],
+    "energetic": ["energetic rock", "upbeat electronic"], "drone": ["dark drone", "ambient drone"], "pad": ["ambient pad"],
+}
+
+
+def plan_music_queries(task_text, llm, moods):
+    """moods: {name: description} -> {name: [queries]} (model with a JSON schema; keyword fallback)."""
+    out = {}
+    if llm is not None:
+        schema = json.loads(json.dumps(QUERY_SCHEMA))
+        schema["properties"]["moods"]["items"]["properties"]["mood"]["enum"] = list(moods)
+        text = "\n".join(f"- {k}: {v or k.replace('_', ' ')}" for k, v in moods.items())
+        res, _ = llm.json([{"role": "user", "content": QUERY_PROMPT.format(task=task_text, moods=text)}], schema,
+                          max_tokens=700, temperature=0.2)
+        for m in res.get("moods", []):
+            qs = out.setdefault(m.get("mood"), [])
+            for q in m.get("queries", []):
+                q = re.sub(r"\s+", " ", re.sub(r"[^A-Za-z0-9 '\-]", " ", q)).strip()
+                if q and len(qs) < 6 and q.lower() not in {x.lower() for x in qs}:
+                    qs.append(q)
+    for name in moods:
+        if not out.get(name):
+            words = re.findall(r"[a-z0-9]+", name.lower())
+            qs = [q for w in words for q in FALLBACK_QUERIES.get(w, [])] or [" ".join(words)]
+            out[name] = list(dict.fromkeys(qs))[:6]
+    return {k: v for k, v in out.items() if k in moods}
+
+
+def gather_music(task_text, llm, dest_dir, moods, per_mood=2, per_query=6, providers=DEFAULT_PROVIDERS,
+                 queries=None, on_event=None):
+    """Task text + mood names -> a library of downloaded, analysed, licence-tracked tracks:
+    [{id, path, title, artist, mood, mood_tags, bpm, beats, duration, best_start, first_sound, license,
+      license_url, page_url, attribution, provider}], also saved to <dest>/music/library.json.
+    moods: ["warm", ...] or {"warm": "семейные воспоминания", ...}. queries: {mood: [...]} skips the model.
+    llm may be None (keyword fallback queries)."""
+    dest = Path(dest_dir).expanduser()
+    (dest / "music").mkdir(parents=True, exist_ok=True)
+    moods = dict(moods) if isinstance(moods, dict) else {m: "" for m in moods}
+    emit = on_event or (lambda *a: None)
+
+    def step(name, args, fn):
+        cid, t0 = uuid.uuid4().hex[:8], time.time()
+        emit("tool_call", {"id": cid, "name": name, "args": args})
+        try:
+            res = fn()
+        except Exception as e:
+            emit("tool_result", {"id": cid, "name": name, "ok": False, "seconds": round(time.time() - t0, 2), "result": {"error": str(e)[:300]}})
+            raise
+        return res, (lambda summary: emit("tool_result", {"id": cid, "name": name, "ok": True, "seconds": round(time.time() - t0, 2), "result": summary}))
+
+    if queries is None:
+        try:
+            queries, done = step("plan_music_queries", {"task": task_text, "moods": list(moods)}, lambda: plan_music_queries(task_text, llm, moods))
+        except Exception as e:  # the model is optional here
+            emit("warning", {"message": f"music queries: {str(e)[:200]}, using keyword queries"})
+            queries, done = step("plan_music_queries", {"moods": list(moods), "fallback": True}, lambda: plan_music_queries(task_text, None, moods))
+        done({"queries": queries})
+    lib_path = dest / "music" / "library.json"
+    saved = json.loads(lib_path.read_text()) if lib_path.exists() else {}
+    cache = saved.pop("_analysis", {})
+    library, used = [], set()
+    for mood, qs in queries.items():
+        cands, seen = [], set()
+        for rank, q in enumerate(qs):
+            res, done = step("search_music", {"query": q, "mood": mood, "providers": list(providers)},
+                             lambda: search_music(q, per_query, providers, on_error=lambda p, e: emit("warning", {"message": f"{p}: {e}"})))
+            done({"count": len(res), "by_provider": {p: sum(r["provider"] == p for r in res) for p in providers}})
+            for pos, r in enumerate(res):
+                if _key(r) not in seen and _key(r) not in used:
+                    seen.add(_key(r))
+                    cands.append((_rank(r), pos, rank, r))
+        cands.sort(key=lambda c: c[:3])  # instrumental + clear licence first, then each query's best hits
+        got, done = step("download_music", {"mood": mood, "candidates": len(cands), "max": per_mood},
+                         lambda: download_music([c[3] for c in cands[: per_mood * 4]], dest, per_mood, on_event=on_event))
+        done({"downloaded": len(got)})
+        for e in got:
+            used.add(e["source_key"])
+            res, done = step("analyse_music", {"track": e["asset_id"]}, lambda: _analysis_cached(e["path"], cache))
+            done({k: res[k] for k in ("bpm", "tempo_confidence", "best_start", "duration")})
+            entry = {"id": e["asset_id"], "path": e["path"], "title": e["title"], "artist": e["artist"], "mood": mood,
+                     "mood_tags": [mood] + [t for t in e.get("tags") or [] if t][:6], "bpm": res["bpm"],
+                     "tempo_confidence": res["tempo_confidence"], "beats": res["beats"], "duration": res["duration"],
+                     "best_start": res["best_start"], "first_sound": res["first_sound"], "license": e["license"],
+                     "license_url": e["license_url"], "page_url": e["page_url"], "attribution": e["attribution"],
+                     "provider": e["provider"], "instrumental": e.get("instrumental"), "bpm_hint": e.get("bpm_hint")}
+            library.append(entry)
+            saved[entry["id"]] = entry
+    saved["_analysis"] = cache
+    _save_json(lib_path, saved)
+    emit("tool_result", {"id": "gather_music", "name": "gather_music", "ok": True, "seconds": 0,
+                         "result": {"tracks": len(library), "licenses": sorted({t["license"] for t in library})}})
+    return library
+
+
+def load_library(dest_dir):
+    """Previously gathered tracks of a folder: {id: entry} (feed it to EDL.music_library)."""
+    p = Path(dest_dir).expanduser() / "music" / "library.json"
+    d = json.loads(p.read_text()) if p.exists() else {}
+    return {k: v for k, v in d.items() if not k.startswith("_") and Path(v["path"]).exists()}
+
+
+def library_for_prompt(library):
+    """Compact view for a model prompt (no beat lists)."""
+    items = library.values() if isinstance(library, dict) else library
+    return [{"id": t["id"], "mood": t["mood"], "title": t["title"][:50], "bpm": t["bpm"], "seconds": t["duration"],
+             "drop_at": t["best_start"], "tags": t["mood_tags"][1:5]} for t in items]
+
+
+# ---------------------------------------------------------------- beat snapping
+
+def beat_snap(durations, beats, offset=0.0, min_seconds=0.6, max_seconds=8.0, tolerance=0.05, every=1, snap_end=True):
+    """Nudges shot durations so the cuts land on beats. Pure function.
+    durations: shot lengths of one section (s); beats: beat times of the track (s); offset: track time at the
+    section's first cut (EDL.section_track_time); min/max_seconds: a number or one per shot; every: snap to
+    every n-th beat (2 = half time, 4 = bars if the first beat is a downbeat); snap_end: also snap the cut
+    after the last shot. Each cut moves to the nearest grid beat within half a grid step and within
+    ±tolerance of the section total, keeping every shot inside its limits. Cuts are snapped independently
+    of each other, so the error never accumulates: the total changes by at most half a grid step.
+    Returns (new_durations, {"moved", "on_beat", "max_shift", "total_before", "total_after"})."""
+    n = len(durations)
+    lo = [min_seconds] * n if isinstance(min_seconds, (int, float)) else list(min_seconds)
+    hi = [max_seconds] * n if isinstance(max_seconds, (int, float)) else list(max_seconds)
+    total = sum(durations)
+    grid = [b - offset for b in beats[::max(1, int(every))] if b - offset > 0]
+    if not grid or not n:
+        return list(durations), {"moved": 0, "on_beat": 0, "max_shift": 0.0, "total_before": round(total, 3), "total_after": round(total, 3)}
+    step = (grid[-1] - grid[0]) / (len(grid) - 1) if len(grid) > 1 else 0.5
+    slack = tolerance * total
+    cuts, prev, orig, on, shifts = [], 0.0, 0.0, 0, []
+    for k, d in enumerate(durations):
+        orig += d
+        last = k == n - 1
+        target = None
+        if not last or snap_end:
+            i = bisect.bisect_left(grid, orig)
+            for g in sorted(grid[max(0, i - 2):i + 2], key=lambda g: abs(g - orig)):
+                if abs(g - orig) > min(step / 2 + 1e-6, slack):
+                    continue
+                if not lo[k] - 1e-6 <= g - prev <= hi[k] + 1e-6:
+                    continue
+                if not last and (orig + durations[k + 1]) - g < lo[k + 1] - 1e-6:  # leave room for the next shot
+                    continue
+                target = g
+                on += 1
+                break
+        if target is None:  # unsnapped cut: keep its original place, inside the limits
+            target = min(max(orig, prev + lo[k]), prev + hi[k])
+        shifts.append(abs(target - orig))
+        cuts.append(target)
+        prev = target
+    out = [round(b - a, 3) for a, b in zip([0.0] + cuts[:-1], cuts)]
+    return out, {"moved": sum(s > 0.005 for s in shifts), "on_beat": on, "max_shift": round(max(shifts), 3),
+                 "total_before": round(total, 3), "total_after": round(sum(out), 3)}
+
+
+def snap_edl(edl, sections=None, every=1, tolerance=0.05):
+    """Applies beat_snap to every section (or the named ones) whose music is a library track with beats,
+    in timeline order (each snap shifts the following sections, and section_track_time follows). Returns
+    {section: report}. Shot limits are the EDL's (LIMITS picture/card seconds)."""
+    from .edl import LIMITS
+    reports = {}
+    for sec in edl.sections:
+        if sections and sec.name not in sections:
+            continue
+        track = edl.music_library.get(sec.music)
+        if not track or not track.get("beats"):
+            continue
+        bed, offset = edl.section_track_time(sec.name)
+        idx = edl.section_shots(sec.name)
+        if bed is None or not idx:
+            continue
+        shots = [edl.shots[i] for i in idx]
+        lim = [LIMITS["card_seconds"] if s.kind == "card" else LIMITS["picture_seconds"] for s in shots]
+        new, rep = beat_snap([s.seconds for s in shots], track["beats"], offset, [x[0] for x in lim], [x[1] for x in lim],
+                             tolerance, every)
+        for s, d in zip(shots, new):
+            s.seconds = d
+            if s.kind == "picture" and s.speed != 100:
+                s.speed = edl.fit_speed(s.speed, d, [])
+        reports[sec.name] = rep
+    return reports
