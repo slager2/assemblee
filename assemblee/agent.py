@@ -315,7 +315,13 @@ class Agent:
                                             + ideas_mod.hook_ideas(n=6, seed=self.seed)}]
         c = self.ask_json("concept", msgs, schema, max_tokens=1800, temperature=0.9, think=self.think)  # the idea deserves the full budget
         self.concept = c
-        self.image_groups = [{"name": re.sub(r"[^a-z0-9_]+", "_", g["name"].lower()).strip("_")[:24] or f"g{i}", "shows": g["shows"],
+        def group_name(g, i):  # the model may name groups in Russian: fall back to its English query
+            for cand in [g["name"]] + list(g["queries_en"]):
+                n = re.sub(r"[^a-z0-9_]+", "_", cand.lower()).strip("_")[:24]
+                if n:
+                    return n
+            return f"g{i}"
+        self.image_groups = [{"name": group_name(g, i), "shows": g["shows"],
                               "queries": g["queries_en"]} for i, g in enumerate(c["picture_groups"])]
         names = [re.sub(r"[^a-z0-9_]+", "_", m["name"].lower()).strip("_")[:24] or f"m{i}" for i, m in enumerate(c["music_moods"])]
         self.music_moods = {n: m["description"] for n, m in zip(names, c["music_moods"])}
@@ -803,10 +809,12 @@ class Agent:
                 frames = []
                 for i in text_shots:
                     a, b = compiled.times[i]
-                    png = compiled.frame_png(a + (b - a) * 0.55)
-                    p = self.run_dir / "frames" / f"shot{i + 1:02d}-r{rnd + 1}.png"
-                    p.write_bytes(png)
-                    frames.append((i, p))
+                    # two moments per shot: animated effects (blooms, glitches) can hide the text at one of them
+                    for tag, f in (("a", 0.3), ("b", 0.75)):
+                        png = compiled.frame_png(a + (b - a) * f)
+                        p = self.run_dir / "frames" / f"shot{i + 1:02d}-r{rnd + 1}{tag}.png"
+                        p.write_bytes(png)
+                        frames.append((i, p))
                     self._thumbs[i] = self.ev.rel(p)
                 self.emit_timeline()
             finally:
@@ -835,7 +843,12 @@ class Agent:
                 return i, verdict
 
             with ThreadPoolExecutor(max_workers=self.slots) as pool:
-                verdicts = list(pool.map(judge, frames))
+                per_frame = list(pool.map(judge, frames))
+            worst = {}  # a shot passes only if both of its moments are readable
+            for i, v in per_frame:
+                if i not in worst or (worst[i].get("text_readable", True) and not v.get("text_readable", True)):
+                    worst[i] = v
+            verdicts = sorted(worst.items())
             bad = [(i, v) for i, v in verdicts if not v.get("text_readable", True)]
             if not bad:
                 self.step("review", {"round": rnd + 1}, {"checked": len(verdicts), "unreadable": 0})
