@@ -16,6 +16,7 @@ gets an entry (kind "music") in <dest>/credits.json, the same file the picture s
 Analysis (no LLM, no numpy) needs only ffmpeg: band energy envelopes at 100 frames/s -> onset strength ->
 autocorrelation tempo -> dynamic-programming beat tracker (Ellis 2007) -> loudest 10 s window = the drop.
 """
+import http.client
 import json
 import math
 import re
@@ -94,8 +95,15 @@ def _parse_mmss(s):
 
 def _ccmixter(query, n, min_s=MIN_SECONDS, max_s=MAX_SECONDS):
     """ccMixter query API: text search over names/tags, licence filtered here (by, by-sa, cc0 only)."""
-    params = {"f": "json", "search": query, "search_type": "any", "sort": "rank", "limit": min(50, max(5, n * 2))}
-    d = _get_json(CCMIXTER + "?" + urllib.parse.urlencode(params), timeout=25)
+    # ccMixter repeats the whole JSON body in an "X-JSON" response header (40+ kB for two tracks), longer
+    # than http.client's 64 kB header-line limit
+    http.client._MAXLINE = max(http.client._MAXLINE, 4 * 1024 * 1024)
+    d = []
+    for how in ("all", "any"):  # every word first, any word as a fallback
+        params = {"f": "json", "search": query, "search_type": how, "sort": "rank", "limit": min(40, max(5, n * 2))}
+        d = _get_json(CCMIXTER + "?" + urllib.parse.urlencode(params), timeout=25)
+        if isinstance(d, list) and len(d) >= 3 or len(query.split()) < 2:
+            break
     out = []
     for it in d if isinstance(d, list) else []:
         lic_url = (it.get("license_url") or "").replace("http://", "https://")
@@ -120,7 +128,8 @@ def _ccmixter(query, n, min_s=MIN_SECONDS, max_s=MAX_SECONDS):
         title, artist = it.get("upload_name") or "", it.get("user_real_name") or it.get("user_name") or ""
         out.append(_result(provider="ccmixter", id=str(it.get("upload_id")), title=title, artist=artist, duration=dur,
                            tags=tags, license=lic, license_url=lic_url, page_url=it.get("file_page_url"),
-                           audio_url=f["download_url"], instrumental=True if "instrumental" in tags else None,
+                           audio_url=f["download_url"], instrumental=False if VOCAL_TAGS & {t.lower() for t in tags}
+                           else True if "instrumental" in tags else None,
                            attribution=f"\"{title}\" by {artist}, {lic}, via ccMixter", bpm_hint=bpm))
     return out
 
@@ -128,7 +137,7 @@ def _ccmixter(query, n, min_s=MIN_SECONDS, max_s=MAX_SECONDS):
 def _wikimedia(query, n, min_s=MIN_SECONDS, max_s=MAX_SECONDS):
     """Commons audio files; videoinfo gives the duration and an mp3/ogg derivative (smaller than wav/flac originals)."""
     params = {"action": "query", "format": "json", "formatversion": "2", "generator": "search",
-              "gsrsearch": f"{query} filetype:audio", "gsrnamespace": "6", "gsrlimit": min(50, max(1, n)),
+              "gsrsearch": f"{query} music filetype:audio", "gsrnamespace": "6", "gsrlimit": min(50, max(1, n)),
               "prop": "videoinfo", "viprop": "url|size|mime|extmetadata|derivatives",
               "viextmetadatafilter": "LicenseShortName|LicenseUrl|Artist|Credit|AttributionRequired|ImageDescription"}
     d = _get_json(COMMONS + "?" + urllib.parse.urlencode(params))
@@ -142,6 +151,8 @@ def _wikimedia(query, n, min_s=MIN_SECONDS, max_s=MAX_SECONDS):
         md = {k: (v or {}).get("value", "") for k, v in (vi.get("extmetadata") or {}).items()}
         lic = _strip_html(md.get("LicenseShortName"))
         title = re.sub(r"^File:|\.\w+$", "", p.get("title", ""))
+        if SPOKEN.search(title) or "Speaker:" in _strip_html(md.get("Artist")):
+            continue  # pronunciation recordings and spoken Wikipedia articles
         title = re.sub(r"\s*\(ISRC [^)]*\)", "", title)
         artist = _strip_html(md.get("Artist")) or _strip_html(md.get("Credit"))
         url = vi.get("url") or ""
@@ -151,6 +162,10 @@ def _wikimedia(query, n, min_s=MIN_SECONDS, max_s=MAX_SECONDS):
                            tags=[], license=lic, license_url=md.get("LicenseUrl") or None, page_url=vi.get("descriptionurl"),
                            audio_url=url, attribution=f"\"{title}\" by {artist or 'unknown author'}, {lic or 'see source'}, via Wikimedia Commons"))
     return out
+
+
+VOCAL_TAGS = {"acappella", "acapella", "vocals", "female_vocals", "male_vocals", "singing", "spoken_word", "rap", "lyrics"}
+SPOKEN = re.compile(r"^[A-Za-z]{2,3}(-[A-Za-z]{2,4})?-|spoken|-article$|pronunciation", re.I)
 
 
 PROVIDERS = {"openverse": _openverse, "ccmixter": _ccmixter, "wikimedia": _wikimedia}
@@ -166,13 +181,15 @@ def search_music(query, n=10, providers=DEFAULT_PROVIDERS, min_seconds=MIN_SECON
     """Searches the providers; returns up to n normalised results interleaved provider by provider:
     {provider, id, title, artist, duration (s), tags, license, license_url, page_url, audio_url, attribution,
      instrumental (True/False/None), bpm_hint (ccMixter), license_clear}. Vocal tracks sink to the end.
-    A multi-word query with no hits is retried with its first two words."""
+    A multi-word query with no hits is retried shorter (first two words, or the longest word)."""
     per = {}
     for name in providers:
         try:
             res = PROVIDERS[name](query, max(n * 2, 10), min_seconds, max_seconds)
-            if not res and len(query.split()) > 2:
-                res = PROVIDERS[name](" ".join(query.split()[:2]), max(n * 2, 10), min_seconds, max_seconds)
+            words = query.split()
+            if not res and len(words) > 1:  # Openverse ANDs the words: retry with fewer
+                shorter = " ".join(words[:2]) if len(words) > 2 else max(words, key=len)
+                res = PROVIDERS[name](shorter, max(n * 2, 10), min_seconds, max_seconds)
             per[name] = sorted((r for r in res if r["license_clear"] or not clear_only), key=_rank)
         except Exception as e:
             per[name] = []
