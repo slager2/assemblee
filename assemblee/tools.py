@@ -104,7 +104,12 @@ class PolishTools:
         if len(self.edl.sfx) >= 8:
             return {"error": "already 8 sound effects"}
         w = []
-        self.edl.sfx.append({"kind": pick(kind, SFX, "whoosh", "kind", w), "shot": int(shot), "at": "end" if at == "end" else "start"})
+        kind = pick(kind, SFX, "whoosh", "kind", w)
+        if any(x["shot"] == int(shot) for x in self.edl.sfx):
+            return {"error": f"shot {shot} already has a sound effect; pick another strong moment"}
+        if sum(1 for x in self.edl.sfx if x["kind"] == kind) >= 2:
+            return {"error": f"'{kind}' already used twice; vary the sounds: {[k for k in SFX if k != kind]}"}
+        self.edl.sfx.append({"kind": kind, "shot": int(shot), "at": "end" if at == "end" else "start"})
         self.on_change()
         return {"ok": True}
 
