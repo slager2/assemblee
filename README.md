@@ -39,6 +39,39 @@ scripts/serve_llm.sh stop
 Проверки без модели: `scripts/smoke_compile.py` (движки), `scripts/dry_run.py` (весь агент с поддельной LLM),
 `scripts/fake_run.py` (демо-поток событий для UI).
 
+## Картинки из интернета (`assemblee/fetch.py`)
+
+Если своих картинок нет, обвязка находит их сама: `gather(task, llm, dest)` просит модель разбить задачу на
+2–5 смысловых групп и 3–8 поисковых запросов **на английском**, ищет в **Openverse** (CC/PD, по умолчанию
+только лицензии, разрешающие коммерческое использование и изменение) и **Wikimedia Commons**, скачивает
+(≤ 15 МБ, короткая сторона ≥ 600 px, JPEG/PNG/WebP, проверка Pillow, отсев почти-дубликатов по dHash),
+затем модель-зрение проверяет каждую картинку на соответствие сцене и удаляет лишние. Результат — папка
+`<dest>/<группа>/<slug>.jpg`, готовая для `assets.load_or_build`; каталог уже заполнен описаниями, второй раз
+ничего не описывается.
+
+```sh
+scripts/serve_llm.sh start agent
+scripts/fetch_demo.py "сделай ролик про семью" --dest /tmp/family     # + контактный лист <dest>/.contact_sheet.jpg
+python3 -m assemblee run --assets /tmp/family --task "сделай ролик про семью" --seconds 30
+```
+
+```python
+from assemblee import fetch
+fetch.search_images("family dinner", 10, orientation="vertical")         # нормализованные результаты
+fetch.download(results, "/tmp/x", max_images=10, group="dinner")          # + /tmp/x/credits.json
+fetch.gather(task, llm, "/tmp/x", per_query=6, max_total=30, on_event=lambda t, d: log.emit(t, **d))
+```
+
+- **Титры обязательны:** `<dest>/credits.json` — по записи на файл (asset id → provider, title, page_url,
+  image_url, license, license_url, author, attribution, license_clear). Для CC BY / BY-SA указывайте `attribution`.
+- `<dest>/.rejected.json` — отбракованные зрением (с описанием), повторный запуск их не скачивает.
+- `on_event(type, data)` шлёт `tool_call`/`tool_result`/`warning` в формате [docs/events.md](docs/events.md)
+  (имена: `plan_image_queries`, `search_images`, `download_images`, `download_image`, `check_image`, `gather_images`).
+- Лимиты: Openverse анонимно 20 запросов/мин и 200/день (запросы разнесены на 3 с), `upload.wikimedia.org`
+  отвечает 429 скриптам, поэтому файлы Commons берутся как миниатюры стандартных размеров с
+  `thumb.wikimedia.org`, по одному. Локальный SearXNG (`providers=(..., "searxng")`, 127.0.0.1:8081)
+  подключается только явно и только если доступен; его результаты с лицензией `unknown`.
+
 ## Зависимости
 
 Python 3.12 + Pillow + aiohttp, ffmpeg, бинарники FilmCraft 0.20.1 и EffectCraft 0.24.1 (пути в
