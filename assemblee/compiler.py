@@ -28,7 +28,12 @@ class Compiled:
         path = Path(path)
         if path.exists():
             path.unlink()
-        self.fc.run("file.exportMedia", {"path": str(path), "format": "h264", "bitrateKbps": bitrate_kbps, "wait": True})
+        old = self.fc.timeout
+        self.fc.timeout = 1800  # a 60 s vertical edit with effects renders on the CPU for several minutes
+        try:
+            self.fc.run("file.exportMedia", {"path": str(path), "format": "h264", "bitrateKbps": bitrate_kbps, "wait": True})
+        finally:
+            self.fc.timeout = old
         if not path.exists() or path.stat().st_size == 0:
             raise RuntimeError("export produced no file")
         return path
