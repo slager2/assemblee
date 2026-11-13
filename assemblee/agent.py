@@ -60,7 +60,7 @@ def norm_text(t):
     return re.sub(r"[^0-9a-zа-яё]+", " ", str(t).lower().replace("ё", "е")).strip()
 
 
-def contact_sheet(frames, labels, cols=None, tile_w=216):
+def contact_sheet(frames, labels, cols=None, tile_w=216, start=1):
     """One tile per shot, numbered, in reading order: the director's view of the whole edit (JPEG bytes)."""
     from PIL import Image, ImageDraw, ImageFont
     n = len(frames)
@@ -72,7 +72,7 @@ def contact_sheet(frames, labels, cols=None, tile_w=216):
     for k, (png, label) in enumerate(zip(frames, labels)):
         im = Image.open(io.BytesIO(png)).convert("RGB").resize((tile_w, tile_h))
         d = ImageDraw.Draw(im)
-        num = str(k + 1)
+        num = str(k + start)
         bw = d.textlength(num, font=big) + 14
         d.rectangle([0, 0, bw, 44], fill=(230, 30, 30))
         d.text((7, 3), num, font=big, fill=(255, 255, 255))
@@ -719,13 +719,19 @@ class Agent:
                 frames = [compiled.frame_png(a + (b - a) * 0.55) for a, b in compiled.times]
             finally:
                 compiled.close()
-            sheet = contact_sheet(frames, [s.section + " · " + (s.title if s.kind == "card" else s.asset.split("/")[-1]) for s in self.edl.shots])
-            path = self.run_dir / "frames" / f"director-r{rnd + 1}.jpg"
-            path.write_bytes(sheet)
-            self.ev.emit("frame", path=self.ev.rel(path), clip=None, seconds=None, verdict=None)
+            labels = [s.section + " · " + (s.title if s.kind == "card" else s.asset.split("/")[-1]) for s in self.edl.shots]
+            # at most 12 bigger tiles per sheet: 21 tiles of 216 px made the 4B mistake photos for black frames
+            sheets = [contact_sheet(frames[j:j + 12], labels[j:j + 12], tile_w=300, start=j + 1) for j in range(0, len(frames), 12)]
+            sheet = sheets[0]
+            for m, sh in enumerate(sheets, 1):
+                path = self.run_dir / "frames" / f"director-r{rnd + 1}{'' if len(sheets) == 1 else '-' + str(m)}.jpg"
+                path.write_bytes(sh)
+                self.ev.emit("frame", path=self.ev.rel(path), clip=None, seconds=None, verdict=None)
             n = len(self.edl.shots)
             # the look step gets only what a viewer gets: the pictures and the words; no parameters, no harness notes
-            listing = "\n".join(f"{i} | {s.section} | {s.seconds} с | {self.expected_text(s)[:60]}" for i, s in enumerate(self.edl.shots, 1))
+            listing = "\n".join(f"{i} | {s.section} | {s.seconds} с | {self.expected_text(s)[:60]} | "
+                                + ("карточка" if s.kind == "card" else self.edl.catalog.get(s.asset, {}).get("what", "")[:70])
+                                for i, s in enumerate(self.edl.shots, 1))
             look_schema = {"type": "object", "properties": {
                 "critique": {"type": "string", "maxLength": 600, "description": "2-4 предложения: что в монтаже плохо и что хорошо"},
                 "problems": {"type": "array", "maxItems": 6, "items": {"type": "object", "properties": {
@@ -733,9 +739,9 @@ class Agent:
                     "required": ["shot", "problem", "fix"], "additionalProperties": False}},
                 "verdict": {"type": "string", "enum": ["готово", "нужны правки"]}}, "required": ["critique", "problems", "verdict"]}
             text = ("Ты режиссёр этого ролика. На картинке — контактный лист монтажа: по одному кадру из каждого плана по порядку "
-                    "(слева направо, сверху вниз), красная цифра = номер кадра в монтажном листе, внизу секция и картинка.\n\n"
+                    "(слева направо, сверху вниз; если листов несколько — они идут подряд), красная цифра = номер кадра в монтажном листе, внизу секция и картинка. Проверь, подходит ли картинка к подписи по смыслу (колонка «что на картинке»).\n\n"
                     f"ЗАДАЧА:\n{self.task}\n\nРАСКАДРОВКА:\n{json.dumps(self.storyboard, ensure_ascii=False)}\n\n"
-                    f"КАДРЫ (номер | секция | секунды | текст):\n{listing}\n\n"
+                    f"КАДРЫ (номер | секция | секунды | текст | что на картинке):\n{listing}\n\n"
                     + (f"Прошлый раунд: ты написал «{last['critique']}», правки: {json.dumps(last['results'], ensure_ascii=False)[:1000]}. "
                        "Это новый лист после правок: оцени заново, не повторяй старую критику, если это уже исправлено.\n\n" if last else "")
                     + "Посмотри на ролик целиком: держит ли он задачу и раскадровку, понятна ли история, нет ли однообразия "
@@ -744,7 +750,7 @@ class Agent:
                     "Суди по тому, что видно на картинках. problems — до 6 конкретных проблем: номер кадра, что не так, как исправить. "
                     "verdict — «готово», если править нечего.")
             msgs = [{"role": "system", "content": SYSTEM},
-                    {"role": "user", "content": [LLM.image_part(sheet, max_side=1280), {"type": "text", "text": text}]}]
+                    {"role": "user", "content": [LLM.image_part(sh, max_side=1600) for sh in sheets] + [{"type": "text", "text": text}]}]
             try:
                 look = self.ask_json("director", msgs, look_schema, max_tokens=1200, temperature=0.3)
             except LLMError as e:
