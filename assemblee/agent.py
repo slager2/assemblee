@@ -458,7 +458,8 @@ class Agent:
 
     def notes_text(self):
         n = self.notes()
-        return ("ЗАМЕЧАНИЯ ОБВЯЗКИ (только информация, решаешь ты; исправляй, если согласен):\n- " + "\n- ".join(n) + "\n\n") if n else ""
+        return ("ЗАМЕЧАНИЯ ОБВЯЗКИ (только информация, решаешь ты; исправляй, если согласен):\n- " + "\n- ".join(n) +
+                "\n(длительность меняют retime_section — вся секция — или update_shot с seconds)\n\n") if n else ""
 
     def action_schema(self):
         """anyOf with one exact object per operation: the grammar only allows that op's own fields; sections and shots are enums."""
@@ -498,14 +499,30 @@ class Agent:
                                                     "Если нужно ещё что-то — следующие действия, иначе done=true и пустой список."})
 
     def apply_actions(self, phase, rnd, out, handler):
-        results = []
+        """Shot numbers in one batch refer to the list the model saw: after a delete or move earlier in the batch
+        they are mapped to the same shot's current position. Exact repeats of an action are skipped."""
+        results, seen = [], set()
+        before = list(self.edl.shots)
         for k, act in enumerate(out.get("actions", [])):
             op = act.pop("op", "")
             args = {key: v for key, v in act.items() if v not in (None, "") or key == "caption"}
             cid = f"{phase}-{rnd}-{k}"
+            sig = json.dumps([op, args], sort_keys=True, ensure_ascii=False)
+            res = None
+            if sig in seen:
+                res = {"error": "same action twice in one answer, skipped"}
+            seen.add(sig)
+            if res is None and isinstance(args.get("shot"), int) and 1 <= args["shot"] <= len(before):
+                target = before[args["shot"] - 1]
+                now = next((i for i, s in enumerate(self.edl.shots) if s is target), None)
+                if now is None:
+                    res = {"error": f"shot {args['shot']} was already deleted in this answer"}
+                elif now + 1 != args["shot"]:
+                    args = {**args, "shot": now + 1, "listed_as": args["shot"]}
             self.ev.emit("tool_call", id=cid, name=op, args=args)
+            args.pop("listed_as", None)
             t = time.time()
-            res = handler.dispatch(op, args)
+            res = res or handler.dispatch(op, args)
             ok = not (isinstance(res, dict) and "error" in res)
             self.counters["tool_calls"] += 1
             self.counters["errors"] += 0 if ok else 1
