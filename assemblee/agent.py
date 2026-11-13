@@ -10,6 +10,7 @@
 The model only makes decisions; everything that needs arithmetic or craft is done by the harness.
 """
 import json
+import threading
 import re
 import io
 import shutil
@@ -122,18 +123,24 @@ class Agent:
         self.concept, self.image_groups, self.music_moods, self.music_queries = None, None, None, None
         self.swaps, self.phase_seconds = [], {}
         self.turn = 0
+        self._lock = threading.Lock()
         self.counters = {"tool_calls": 0, "errors": 0}
         self.t0 = time.time()
         (self.run_dir / "frames" / "thumbs").mkdir(parents=True, exist_ok=True)
 
     # ---------- llm wrappers with events ----------
-    def _llm_event(self, r, phase):
+    def _next_turn(self):
+        with self._lock:  # parallel section builds share the counter
+            self.turn += 1
+            return self.turn
+
+    def _llm_event(self, r, phase, turn=None):
         msg = r["message"]
         content = msg.get("content") or ""
         if r.get("reasoning"):
             thoughts = r["reasoning"].strip()
             content = "[мысли] " + (thoughts if len(thoughts) <= 1500 else thoughts[:700] + " … " + thoughts[-700:]) + "\n\n" + content
-        self.ev.emit("llm_response", turn=self.turn, phase=phase, content=content[:4000], reasoning_tokens=r.get("reasoning_tokens", 0),
+        self.ev.emit("llm_response", turn=turn if turn is not None else self.turn, phase=phase, content=content[:4000], reasoning_tokens=r.get("reasoning_tokens", 0),
                      tool_calls=[{"name": c["function"]["name"], "arguments": c["function"].get("arguments", "")[:4000]} for c in msg.get("tool_calls") or []],
                      usage=r["usage"], seconds=r["seconds"], tokens_per_second=r["tokens_per_second"])
         self.ev.emit("llm_stats", tokens_per_second=r["tokens_per_second"], prompt_per_second=r.get("prompt_per_second", 0),
@@ -141,15 +148,16 @@ class Agent:
 
     def ask_json(self, phase, messages, schema, max_tokens=3000, temperature=0.5, retries=2, think=False):
         for attempt in range(retries + 1):
-            self.turn += 1
-            self.ev.emit("llm_request", turn=self.turn, phase=phase, messages=len(messages), prompt_tokens_est=sum(len(str(m.get("content", ""))) for m in messages) // 3)
+            turn = self._next_turn()
+            self.ev.emit("llm_request", turn=turn, phase=phase, messages=len(messages), prompt_tokens_est=sum(len(str(m.get("content", ""))) for m in messages) // 3)
             try:
                 out, r = self.llm.json(messages, schema, max_tokens=max_tokens, temperature=temperature,
                                        **({"think": True, "think_budget": self.think_budget} if think else {}))
-                self._llm_event(r, phase)
+                self._llm_event(r, phase, turn)
                 return out
             except LLMError as e:
-                self.counters["errors"] += 1
+                with self._lock:
+                    self.counters["errors"] += 1
                 self.ev.emit("warning", message=f"{phase}: {e} (attempt {attempt + 1})")
         raise LLMError(f"{phase}: model failed {retries + 1} times")
 
