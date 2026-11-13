@@ -51,8 +51,9 @@ POLISH_TOOLS = polish_tools("strict")
 
 
 class PolishTools:
-    def __init__(self, edl: EDL, on_change):
-        self.edl, self.on_change = edl, on_change
+    def __init__(self, edl: EDL, on_change, guardrails="full"):
+        """guardrails != "full": sound-variety rules are warnings, not refusals (the model decides)."""
+        self.edl, self.on_change, self.guardrails = edl, on_change, guardrails
         self.finished = False
         self.tools = polish_tools(edl.mode)
 
@@ -139,13 +140,18 @@ class PolishTools:
             return {"error": "already 8 sound effects"}
         w = []
         kind = pick(kind, SFX, "whoosh", "kind", w)
+        strict = self.guardrails == "full"
         if any(x["shot"] == int(shot) for x in self.edl.sfx):
-            return {"error": f"shot {shot} already has a sound effect; pick another strong moment"}
+            if strict:
+                return {"error": f"shot {shot} already has a sound effect; pick another strong moment"}
+            w.append(f"shot {shot} now has more than one sound effect")
         if sum(1 for x in self.edl.sfx if x["kind"] == kind) >= 2:
-            return {"error": f"'{kind}' already used twice; vary the sounds: {[k for k in SFX if k != kind]}"}
+            if strict:
+                return {"error": f"'{kind}' already used twice; vary the sounds: {[k for k in SFX if k != kind]}"}
+            w.append(f"'{kind}' is used {sum(1 for x in self.edl.sfx if x['kind'] == kind) + 1} times now")
         self.edl.sfx.append({"kind": kind, "shot": int(shot), "at": "end" if at == "end" else "start"})
         self.on_change()
-        return {"ok": True}
+        return {"ok": True, "warnings": w} if w else {"ok": True}
 
     def clear_sfx(self, shot):
         before = len(self.edl.sfx)

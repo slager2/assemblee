@@ -27,6 +27,9 @@ from .llm import LLM, LLMError
 from .media import CAPTION_STYLES, POSITIONS, h, thumb
 from .tools import POLISH_TOOLS, PolishTools, polish_tools
 
+GUARDRAILS = ("full", "light", "off")
+READ_FLOOR = 0.8  # hard minimum for a shot with text, in every guardrails mode
+
 SYSTEM = ("Ты опытный монтажёр коротких вертикальных роликов (Reels/Shorts/TikTok). Ты принимаешь творческие решения: "
           "структура, выбор кадров, ритм, подписи, стиль, музыка. Технику (кадрирование, анимацию, звук) делает программа. "
           "Пиши подписи по-русски, коротко и цепко. Не повторяй один и тот же кадр без причины. Меняй ритм: быстрые и медленные кадры, разные движения камеры.")
@@ -60,13 +63,23 @@ def text_match(read, expected):
 
 class Agent:
     def __init__(self, task: str, assets_dir: Path, briefs: list[Path], run_dir: Path, seconds: float = 60, slots: int = 2,
-                 llm: LLM | None = None, max_polish_turns=10, review_rounds=2, output_name="video.mp4", mode="strict", fetch: str | None = None):
+                 llm: LLM | None = None, max_polish_turns=10, review_rounds=2, output_name="video.mp4", mode="strict", fetch: str | None = None,
+                 guardrails="full", think=False, think_budget=1024, planner=None, director=None):
+        """guardrails: full (the harness fixes durations, key messages, transitions, asset groups itself), light (only
+        validation; everything else becomes feedback the model sees in polish), off (light without reading-time
+        warnings and duplicate removal). think: storyboard and section building think first. planner: "9b" runs
+        plan/build/polish on Qwen3.5-9B and swaps back to the 4B for vision. director: contact-sheet self-review
+        (default: on unless guardrails=full)."""
+        if guardrails not in GUARDRAILS:
+            raise ValueError(f"guardrails must be one of {GUARDRAILS}")
         self.task, self.assets_dir, self.briefs = task, Path(assets_dir), [Path(b) for b in briefs]
         self.run_dir, self.seconds, self.slots = Path(run_dir), float(seconds), max(1, int(slots))
         self.llm = llm or LLM()
         self.ev = EventLog(self.run_dir)
         self.max_polish_turns, self.review_rounds, self.output_name = max_polish_turns, review_rounds, output_name
         self.mode, self.fetch = mode, fetch
+        self.guardrails, self.think, self.think_budget, self.planner = guardrails, bool(think), int(think_budget), planner
+        self.director_on = (guardrails != "full") if director is None else bool(director)
         self.turn = 0
         self.counters = {"tool_calls": 0, "errors": 0}
         self.t0 = time.time()
@@ -75,18 +88,23 @@ class Agent:
     # ---------- llm wrappers with events ----------
     def _llm_event(self, r, phase):
         msg = r["message"]
-        self.ev.emit("llm_response", turn=self.turn, phase=phase, content=(msg.get("content") or "")[:4000],
+        content = msg.get("content") or ""
+        if r.get("reasoning"):
+            thoughts = r["reasoning"].strip()
+            content = "[мысли] " + (thoughts if len(thoughts) <= 1500 else thoughts[:700] + " … " + thoughts[-700:]) + "\n\n" + content
+        self.ev.emit("llm_response", turn=self.turn, phase=phase, content=content[:4000], reasoning_tokens=r.get("reasoning_tokens", 0),
                      tool_calls=[{"name": c["function"]["name"], "arguments": c["function"].get("arguments", "")[:4000]} for c in msg.get("tool_calls") or []],
                      usage=r["usage"], seconds=r["seconds"], tokens_per_second=r["tokens_per_second"])
         self.ev.emit("llm_stats", tokens_per_second=r["tokens_per_second"], prompt_per_second=r.get("prompt_per_second", 0),
                      kv_used=None, slots_busy=None, vram_mb=None, totals=dict(self.llm.totals))
 
-    def ask_json(self, phase, messages, schema, max_tokens=3000, temperature=0.5, retries=2):
+    def ask_json(self, phase, messages, schema, max_tokens=3000, temperature=0.5, retries=2, think=False):
         for attempt in range(retries + 1):
             self.turn += 1
             self.ev.emit("llm_request", turn=self.turn, phase=phase, messages=len(messages), prompt_tokens_est=sum(len(str(m.get("content", ""))) for m in messages) // 3)
             try:
-                out, r = self.llm.json(messages, schema, max_tokens=max_tokens, temperature=temperature)
+                out, r = self.llm.json(messages, schema, max_tokens=max_tokens, temperature=temperature,
+                                       **({"think": True, "think_budget": self.think_budget} if think else {}))
                 self._llm_event(r, phase)
                 return out
             except LLMError as e:
@@ -191,9 +209,9 @@ class Agent:
                                             "asset_group — из какой папки картинок брать кадры (any — из любой, для интро и финала), "
                                             "transition_in — переход при входе в секцию (не cut: разные секции должны отличаться). Музыка: "
                                             + ", ".join(MUSIC) + ". Все тексты (title, concept, goal, visual_style) пиши по-русски."}]
-        sb = self.ask_json("plan", msgs, schema, max_tokens=2500, temperature=0.7)
+        sb = self.ask_json("plan", msgs, schema, max_tokens=2500, temperature=0.7, think=self.think)
         total = sum(max(2.0, float(s.get("target_seconds", 8))) for s in sb["sections"]) or 1
-        scale = self.seconds / total  # arithmetic belongs to the harness
+        scale = self.seconds / total if self.guardrails == "full" else 1.0  # full: arithmetic belongs to the harness
         names = set()
         for s in sb["sections"]:
             name = re.sub(r"[^A-Za-z0-9_-]+", "_", s["name"]).strip("_")[:24] or f"s{len(names) + 1}"
@@ -215,7 +233,7 @@ class Agent:
         self.emit_timeline()
 
     def shot_schema(self, group="any"):
-        ids = [k for k in self.edl.catalog if group == "any" or k.startswith(group + "/")] or list(self.edl.catalog)
+        ids = [k for k in self.edl.catalog if group == "any" or self.guardrails != "full" or k.startswith(group + "/")] or list(self.edl.catalog)
         picture = {"type": "object", "additionalProperties": False, "properties": {
             "kind": {"type": "string", "enum": ["picture"]}, "asset": {"type": "string", "enum": ids}, "seconds": {"type": "number"},
             "motion": {"type": "string", "enum": MOTIONS}, "look": {"type": "string", "enum": list(LOOKS)},
@@ -248,9 +266,10 @@ class Agent:
                                             "Кадр kind=card: полноэкранная карточка, asset=\"\", card_title (до 28 символов), card_subtitle, card_style, seconds 1.5-3.\n"
                                             "transition_out — переход в следующий кадр (cut — склейка). Подбирай картинки по смыслу описаний, не повторяй одну картинку. "
                                             + ("Это интро или финал: бери по одной картинке из разных групп. " if getattr(sec, "asset_group", "any") == "any" else
-                                               f"Бери картинки только из группы {sec.asset_group}. ")
+                                               f"Бери картинки только из группы {sec.asset_group}. " if self.guardrails == "full" else
+                                               f"Подсказка: для этой секции подходят картинки группы {sec.asset_group}, но можешь брать любые, если так сильнее. ")
                                             + "Все подписи и заголовки — только по-русски, без эмодзи."}]
-        out = self.ask_json(f"build:{sec.name}", msgs, self.shot_schema(getattr(sec, "asset_group", "any")), max_tokens=2500, temperature=0.6)
+        out = self.ask_json(f"build:{sec.name}", msgs, self.shot_schema(getattr(sec, "asset_group", "any")), max_tokens=2500, temperature=0.6, think=self.think)
         return k, out
 
     def build(self):
@@ -279,9 +298,10 @@ class Agent:
                 warnings.append("section came back empty; added a title card")
                 s = self.edl.make_shot({"card_title": sec.goal[:28] or sec.name, "card_style": "minimal", "seconds": 2}, sec.name, warnings)
                 shots.append(s)
-            # 1) fit the section to its target length
+            full = self.guardrails == "full"
+            # 1) fit the section to its target length (full only; otherwise the polish notes report it)
             total = sum(s.seconds for s in shots)
-            if total and abs(total - sec.target_seconds) / sec.target_seconds > 0.2:
+            if full and total and abs(total - sec.target_seconds) / sec.target_seconds > 0.2:
                 f = sec.target_seconds / total
                 for s in shots:
                     lim = LIMITS["card_seconds"] if s.kind == "card" else LIMITS["picture_seconds"]
@@ -289,36 +309,40 @@ class Agent:
                 warnings.append(f"section {sec.name}: {round(total, 1)}s scaled toward target {sec.target_seconds}s")
             # 2) reading time floor for captions and cards wins over the target
             for s in shots:
-                text = (s.caption.text if s.caption else "") + (" " + s.title + " " + s.subtitle if s.kind == "card" else "")
-                need = round(min(6.0, max(1.2, len(text.strip()) / 14)), 1) if text.strip() else 0
+                need = self.reading_seconds(s)
+                if not full:
+                    need = READ_FLOOR if need else 0  # only a hard floor; the rest is a warning in polish
                 if need > s.seconds:
+                    if not full:
+                        warnings.append(f"{s.label()}: {s.seconds}s is too short to see the text, raised to {need}s")
                     s.seconds = need
             # 2b) the section's key message must be on screen (card at the start; for the last section at the end)
             key = getattr(sec, "key_message", "")
-            if key and not any(text_match(self.expected_text(x) + " " + (x.subtitle if x.kind == "card" else ""), key) >= 0.6 for x in shots):
+            if full and key and not self.key_on_screen(key, shots):
                 last = k + 1 == len(self.edl.sections)
                 card = self.edl.make_shot({"card_title": key, "card_style": "final" if last else "minimal", "seconds": 2.5}, sec.name, warnings)
                 if card:
                     shots.insert(len(shots) if last else 0, card)
                     warnings.append(f"key message «{key}» was missing: added a card")
             # 3) still far too long: drop shots from the end (keep at least 2)
-            while len(shots) > 2 and sum(s.seconds for s in shots) > sec.target_seconds * 1.4:
+            while full and len(shots) > 2 and sum(s.seconds for s in shots) > sec.target_seconds * 1.4:
                 gone = shots.pop()
                 warnings.append(f"dropped {gone.label()} to keep the section near {sec.target_seconds}s")
             # 4) repeated pictures inside the section
             seen = set()
             for s in list(shots):
-                if s.kind == "picture" and s.asset in seen and len(shots) > 2:
+                if self.guardrails != "off" and s.kind == "picture" and s.asset in seen and len(shots) > 2:
                     shots.remove(s)
                     warnings.append(f"removed repeated picture {s.asset}")
                 seen.add(s.asset)
             # 5) not every cut is a transition: keep at most 2 inside the section
             inner = [s for s in shots[:-1] if s.transition_out != "cut"]
-            for s in inner[2:]:
-                s.transition_out = "cut"
-            if len(inner) > 2:
-                warnings.append(f"kept 2 of {len(inner)} transitions inside the section")
-            if shots[-1].transition_out != "cut" and k + 1 < len(self.edl.sections):
+            if full:
+                for s in inner[2:]:
+                    s.transition_out = "cut"
+                if len(inner) > 2:
+                    warnings.append(f"kept 2 of {len(inner)} transitions inside the section")
+            if full and shots[-1].transition_out != "cut" and k + 1 < len(self.edl.sections):
                 shots[-1].transition_out = "cut"  # the next section sets its own entrance transition
             # 6) section entrance transition
             if k and self.edl.shots and self.edl.shots[-1].transition_out == "cut":
@@ -329,6 +353,49 @@ class Agent:
                       {"shots": len(shots), "seconds": round(sum(s.seconds for s in shots), 1), "warnings": warnings})
             self.refresh_thumbs()
             self.emit_timeline()
+
+    @staticmethod
+    def reading_seconds(shot):
+        """How long the shot's text needs on screen (about 14 characters per second, 1.2-6 s); 0 without text."""
+        text = (shot.caption.text if shot.caption else "") + (" " + shot.title + " " + shot.subtitle if shot.kind == "card" else "")
+        return round(min(6.0, max(1.2, len(text.strip()) / 14)), 1) if text.strip() else 0
+
+    def key_on_screen(self, key, shots):
+        return any(text_match(self.expected_text(x) + " " + (x.subtitle if x.kind == "card" else ""), key) >= 0.6 for x in shots)
+
+    def notes(self):
+        """light/off guardrails: what the full harness would have fixed silently, as information for the model."""
+        if self.guardrails == "full":
+            return []
+        out, total = [], self.edl.total()
+        if abs(total - self.seconds) / self.seconds > 0.15:
+            out.append(f"ролик сейчас {total} с, в задании около {int(self.seconds)} с")
+        for sec in self.edl.sections:
+            shots = [self.edl.shots[i] for i in self.edl.section_shots(sec.name)]
+            if not shots:
+                out.append(f"секция {sec.name} пустая")
+                continue
+            got = round(sum(s.seconds for s in shots), 1)
+            if abs(got - sec.target_seconds) / max(1.0, sec.target_seconds) > 0.25:
+                out.append(f"секция {sec.name}: {got} с, в раскадровке {sec.target_seconds} с")
+            key = getattr(sec, "key_message", "")
+            if key and not self.key_on_screen(key, shots):
+                out.append(f"секция {sec.name}: главная мысль «{key}» не появляется в кадре (ни в подписи, ни в карточке)")
+        if self.guardrails == "light":
+            for i, s in enumerate(self.edl.shots, 1):
+                need = self.reading_seconds(s)
+                if need > s.seconds + 0.05:
+                    out.append(f"кадр {i}: текст «{self.expected_text(s)[:40]}» на экране {s.seconds} с, для чтения нужно ~{need} с")
+        seen = {}
+        for i, s in enumerate(self.edl.shots, 1):
+            if s.kind == "picture":
+                seen.setdefault(s.asset, []).append(i)
+        out += [f"картинка {a} стоит в кадрах {v}" for a, v in seen.items() if len(v) > 1]
+        return out
+
+    def notes_text(self):
+        n = self.notes()
+        return ("ЗАМЕЧАНИЯ ОБВЯЗКИ (только информация, решаешь ты; исправляй, если согласен):\n- " + "\n- ".join(n) + "\n\n") if n else ""
 
     def action_schema(self):
         """anyOf with one exact object per operation: the grammar only allows that op's own fields; sections and shots are enums."""
@@ -376,15 +443,21 @@ class Agent:
             if out.get("done") or not out.get("actions"):
                 return
             msgs.append({"role": "user", "content": f"Результаты: {json.dumps(results, ensure_ascii=False)[:2500]}\n\n"
-                                                    f"Монтажный лист сейчас: {json.dumps(self.edl.summary(), ensure_ascii=False)[:6000]}\n\n"
+                                                    f"Монтажный лист сейчас: {json.dumps(self.edl.summary(), ensure_ascii=False)[:6000]}\n\n" + self.notes_text() +
                                                     "Если нужно ещё что-то — следующие действия, иначе done=true и пустой список."})
 
     def polish(self):
         self.ev.emit("phase", name="polish", note="доводка: эффекты, звуки, порядок, музыка")
-        handler = PolishTools(self.edl, self.changed)
-        intro = (f"ЗАДАЧА:\n{self.task}\n\nМонтаж собран. Монтажный лист:\n{json.dumps(self.edl.summary(), ensure_ascii=False)}\n\n"
-                 "Доведи его: добавь 3-6 звуковых эффектов на сильные моменты (add_sfx), поправь эффекты и движения, чтобы было разнообразно, "
-                 "проверь, что подписи короткие, по-русски и по делу, что нет повторов, что финал сильный. Верни список действий (op = имя операции и её поля). Делай только нужные правки; когда всё готово — done=true.")
+        handler = PolishTools(self.edl, self.changed, guardrails=self.guardrails)
+        if self.guardrails == "full":
+            ask = ("Доведи его: добавь 3-6 звуковых эффектов на сильные моменты (add_sfx), поправь эффекты и движения, чтобы было разнообразно, "
+                   "проверь, что подписи короткие, по-русски и по делу, что нет повторов, что финал сильный. ")
+        else:
+            ask = (f"РАСКАДРОВКА:\n{json.dumps(self.storyboard, ensure_ascii=False)}\n\n{self.notes_text()}"
+                   "Доведи монтаж так, как считаешь лучшим: длительности, порядок, подписи, движения, эффекты, переходы, звуки (add_sfx), музыка. "
+                   "Обвязка больше ничего не подгоняет сама: длительности секций, главные мысли в кадре и время на чтение — на тебе. ")
+        intro = (f"ЗАДАЧА:\n{self.task}\n\nМонтаж собран. Монтажный лист:\n{json.dumps(self.edl.summary(), ensure_ascii=False)}\n\n" + ask +
+                 "Верни список действий (op = имя операции и её поля). Делай только нужные правки; когда всё готово — done=true.")
         self.action_rounds("polish", intro, handler, max(1, self.max_polish_turns // 3))
 
     def review(self):
@@ -426,7 +499,7 @@ class Agent:
                 return
             self.step("review", {"round": rnd + 1}, {"checked": len(verdicts), "unreadable": [i + 1 for i, _ in bad],
                                                      "error": f"текст плохо читается на кадрах {[i + 1 for i, _ in bad]}"}, ok=False)
-            handler = PolishTools(self.edl, self.changed)
+            handler = PolishTools(self.edl, self.changed, guardrails=self.guardrails)
             listing = "\n".join(f"кадр {i + 1}: {self.edl.shots[i].label()} — нужный текст «{self.expected_text(self.edl.shots[i])}», "
                                 f"стиль {self.edl.shots[i].caption.style if self.edl.shots[i].caption else self.edl.shots[i].card_style}, эффекты {self.edl.shots[i].effects}, "
                                 f"look {self.edl.shots[i].look}; зрение прочитало «{v.get('read', '')}»" for i, v in bad)
