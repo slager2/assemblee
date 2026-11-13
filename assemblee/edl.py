@@ -7,6 +7,7 @@ import difflib
 import re
 from dataclasses import asdict, dataclass, field
 
+from . import vocab
 from .cards import CARD_STYLES
 from .media import CAPTION_STYLES, POSITIONS
 
@@ -96,6 +97,12 @@ class Shot:
     effects: list = field(default_factory=list)
     transition_out: str = "cut"
     transition_seconds: float = 0.5
+    # rich vocabulary (vocab.py); the defaults mean "not used", so strict EDLs compile exactly as before
+    grade: dict = field(default_factory=dict)  # numeric Lumetri values, applied on top of `look`
+    camera: dict | None = None  # replaces `motion` when set
+    speed: float = 100.0  # animated/video pictures only
+    transition_params: dict = field(default_factory=dict)
+    text_anim: str = "none"  # cards only
 
     def label(self):
         return self.title if self.kind == "card" else self.asset
@@ -110,25 +117,56 @@ class Section:
     music_db: float = -10.0
 
 
+def is_animated(entry):
+    return entry.get("kind") == "animated" or str(entry.get("path", "")).lower().endswith((".gif", ".mp4", ".webm", ".mov"))
+
+
+ANIMATED_SOURCE_SECONDS = 11.5  # media.animated_to_vertical_mp4 makes 12 s clips
+
+
 class EDL:
-    def __init__(self, catalog):
+    def __init__(self, catalog, mode="strict"):
+        """mode: "strict" (small menus of this module) or "rich" (vocab.py: every engine transition/effect, grade, camera...)."""
+        if mode not in vocab.MODES:
+            raise ValueError(f"mode must be one of {vocab.MODES}")
         self.catalog = catalog
+        self.mode = mode
         self.sections: list[Section] = []
         self.shots: list[Shot] = []
         self.sfx: list[dict] = []  # {"kind", "shot" (1-based), "at": start|end}
 
     # ---- validation ----
+    def transition(self, raw, warnings):
+        return vocab.resolve_transition(raw.get("transition_out"), raw.get("transition_params"), self.mode, TRANSITIONS, warnings)
+
+    def effects(self, items, warnings):
+        out, seen = [], set()
+        for e in items or []:
+            fx = vocab.resolve_effect(e, self.mode, EFFECTS, warnings)
+            key = fx if isinstance(fx, str) else fx and fx["id"]
+            if fx and key not in seen:
+                seen.add(key)
+                out.append(fx)
+        limit = vocab.MAX_EFFECTS[self.mode]
+        if len(out) > limit:
+            warnings.append(f"effects: at most {limit}, kept the first {limit}")
+        return out[:limit]
+
     def make_shot(self, raw: dict, section: str, warnings: list) -> Shot | None:
         if not isinstance(raw, dict):
             warnings.append(f"shot must be an object, got {type(raw).__name__}")
             return None
         title = clean_text(raw.get("card_title") or raw.get("title"), 40)
         asset = str(raw.get("asset") or "").strip()
+        rich = self.mode == "rich"
         if title and not asset:
+            tid, tparams = self.transition(raw, warnings)
             return Shot(section=section, kind="card", title=title[:40], subtitle=clean_text(raw.get("card_subtitle") or raw.get("subtitle"), 80),
                         card_style=pick(raw.get("card_style") or raw.get("style"), CARD_STYLES, "minimal", "card_style", warnings),
                         seconds=clamp(raw.get("seconds", 2.5), LIMITS["card_seconds"], 2.5, "card seconds", warnings),
-                        transition_out=pick(raw.get("transition_out"), TRANSITIONS, "cut", "transition_out", warnings))
+                        transition_out=tid, transition_params=tparams,
+                        transition_seconds=clamp(raw.get("transition_seconds", 0.5), LIMITS["transition_seconds"], 0.5, "transition_seconds", warnings),
+                        text_anim=vocab.resolve_text_anim(raw.get("text_anim"), warnings) if rich else "none")
         if asset not in self.catalog:
             close = difflib.get_close_matches(asset, list(self.catalog), n=1, cutoff=0.6)
             if not close:
@@ -141,13 +179,29 @@ class EDL:
             cap = Caption(text=clean_text(str(raw["caption"]).replace("\\n", "\n"), 120),
                           style=pick(raw.get("caption_style"), CAPTION_STYLES, "subtitle", "caption_style", warnings),
                           position=pick(raw.get("caption_position"), POSITIONS, "bottom", "caption_position", warnings))
-        effects = list(dict.fromkeys(e for e in (pick(e, EFFECTS, None, "effect", warnings) for e in (raw.get("effects") or [])) if e))[:2]
-        return Shot(section=section, kind="picture", asset=asset,
-                    seconds=clamp(raw.get("seconds", 3), LIMITS["picture_seconds"], 3.0, "seconds", warnings),
+        tid, tparams = self.transition(raw, warnings)
+        seconds = clamp(raw.get("seconds", 3), LIMITS["picture_seconds"], 3.0, "seconds", warnings)
+        shot = Shot(section=section, kind="picture", asset=asset, seconds=seconds,
                     motion=pick(raw.get("motion"), MOTIONS, "zoom_in", "motion", warnings),
                     look=pick(raw.get("look"), LOOKS, "neutral", "look", warnings), caption=cap,
-                    effects=[e for e in effects if e], transition_out=pick(raw.get("transition_out"), TRANSITIONS, "cut", "transition_out", warnings),
+                    effects=self.effects(raw.get("effects"), warnings), transition_out=tid, transition_params=tparams,
                     transition_seconds=clamp(raw.get("transition_seconds", 0.5), LIMITS["transition_seconds"], 0.5, "transition_seconds", warnings))
+        if rich:
+            shot.grade = vocab.resolve_grade(raw.get("grade"), warnings)
+            shot.camera = vocab.resolve_camera(raw.get("camera"), warnings)
+            shot.speed = self.fit_speed(vocab.resolve_speed(raw.get("speed"), is_animated(self.catalog[asset]), warnings), seconds, warnings)
+        elif any(raw.get(k) for k in ("grade", "camera", "speed", "text_anim")):
+            warnings.append("grade/camera/speed/text_anim are only available in rich mode, ignored")
+        return shot
+
+    @staticmethod
+    def fit_speed(speed, seconds, warnings):
+        """A fast clip needs seconds * speed of source; the prepared animated clip is about 12 s long."""
+        top = round(ANIMATED_SOURCE_SECONDS / seconds * 100, 1)
+        if speed > top:
+            warnings.append(f"speed: {speed}% needs more source than the clip has for a {seconds}s shot, used {top}%")
+            return top
+        return speed
 
     # ---- queries ----
     def total(self):
@@ -169,17 +223,27 @@ class EDL:
         for i, (s, (a, b)) in enumerate(zip(self.shots, times), 1):
             row = {"shot": i, "section": s.section, "start": a, "end": b, "what": s.label()}
             if s.kind == "picture":
-                row.update(motion=s.motion, look=s.look)
+                row.update(motion=s.motion if not s.camera else "camera", look=s.look)
+                if s.grade:
+                    row["grade"] = s.grade
+                if s.camera:
+                    row["camera"] = s.camera
+                if s.speed != 100:
+                    row["speed"] = s.speed
                 if s.caption:
                     row["caption"] = f"[{s.caption.style}] {s.caption.text[:50]}"
                 if s.effects:
                     row["effects"] = s.effects
             else:
                 row["card_style"] = s.card_style
+                if s.text_anim != "none":
+                    row["text_anim"] = s.text_anim
             if s.transition_out != "cut":
                 row["transition_out"] = s.transition_out
+                if s.transition_params:
+                    row["transition_params"] = s.transition_params
             rows.append(row)
-        return {"total_seconds": self.total(), "sections": [asdict(x) for x in self.sections], "shots": rows, "sfx": self.sfx}
+        return {"total_seconds": self.total(), "mode": self.mode, "sections": [asdict(x) for x in self.sections], "shots": rows, "sfx": self.sfx}
 
     def to_dict(self):
         return {"sections": [asdict(x) for x in self.sections], "shots": [asdict(s) for s in self.shots], "sfx": self.sfx}
