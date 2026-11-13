@@ -623,7 +623,8 @@ class Agent:
                 continue
             props = {"op": {"type": "string", "enum": [f["name"]]}}
             for k, v in f["parameters"]["properties"].items():
-                props[k] = shot if k in ("shot",) else section if k == "section" else ({"type": "integer", "minimum": 1, "maximum": n} if k == "to" else v)
+                props[k] = shot if k in ("shot",) else section if k == "section" else ({"type": "integer", "minimum": 1, "maximum": n} if k == "to" else
+                           {"type": "string", "enum": list(self.edl.catalog)} if k == "asset" else v)
             variants.append({"type": "object", "properties": props, "required": ["op"] + f["parameters"]["required"], "additionalProperties": False})
         return {"type": "object", "properties": {
             "thoughts": {"type": "string", "maxLength": 200, "description": "одно-два предложения: что улучшаешь и зачем"},

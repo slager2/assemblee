@@ -47,7 +47,8 @@ def polish_tools(mode="strict", music=None):
 
 _BASE = [
     _tool("update_shot", "Change fields of one shot. Only pass the fields you change.",
-          {"shot": SHOT, "seconds": {"type": "number"}, "motion": {"type": "string", "enum": MOTIONS}, "look": {"type": "string", "enum": list(LOOKS)},
+          {"shot": SHOT, "asset": {"type": "string", "description": "replace the picture (asset id)"},
+           "seconds": {"type": "number"}, "motion": {"type": "string", "enum": MOTIONS}, "look": {"type": "string", "enum": list(LOOKS)},
            "caption": {"type": "string", "description": "new caption text; empty string removes the caption"},
            "caption_style": {"type": "string", "enum": CAPTION_STYLES}, "caption_position": {"type": "string", "enum": POSITIONS},
            "effects": {"type": "array", "items": {"type": "string", "enum": list(EFFECTS)}, "description": "replaces the effect list (max 2); [] removes all"},
@@ -85,6 +86,13 @@ class PolishTools:
         s, w = self._shot(shot), []
         if "seconds" in f:
             s.seconds = clamp(f["seconds"], shot_limits(s), s.seconds, "seconds", w)
+        if s.kind == "picture" and f.get("asset"):
+            if f["asset"] in self.edl.catalog:
+                s.asset = f["asset"]
+                if is_animated(self.edl.catalog[s.asset]) is False:
+                    s.speed = 100.0
+            else:
+                w.append(f"asset '{f['asset']}' not in the catalog, picture kept")
         if s.kind == "picture":
             if "motion" in f:
                 s.motion = pick(f["motion"], MOTIONS, s.motion, "motion", w)
