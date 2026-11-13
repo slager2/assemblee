@@ -459,6 +459,8 @@ class Agent:
         picture["properties"].update(frag["picture"])
         card["properties"].update(frag["card"])
         picture["properties"].update(templates.schema_props("picture"))  # layouts, caption styles + params from the registry
+        if "layout" in picture["properties"] and "layout" not in picture["required"]:
+            picture["required"].append("layout")  # optional fields get skipped by a small model: the layout must be a decision
         card["properties"].update(templates.schema_props("card"))
         picture["properties"]["extra_assets"]["items"]["enum"] = ids
         return {"type": "object", "properties": {"shots": {"type": "array", "minItems": 2, "maxItems": 8, "items": {"anyOf": [picture, card]}}}, "required": ["shots"]}
@@ -484,7 +486,7 @@ class Agent:
                                             + (f"Это начало ролика: ПЕРВЫЙ кадр — крючок из раскадровки: картинка {self.hook.get('asset')} и подпись «{self.hook.get('caption')}» "
                                                f"(короткий, 0.8-1.5 с, сразу в действие, не заставка).\n" if k == 0 and getattr(self, "hook", None) else "")
                                             + (f"Это финал ролика: {self.ending}\n" if k + 1 == len(self.edl.sections) and getattr(self, "ending", "") else "")
-                                            + "Кадр kind=picture: asset (id из списка), seconds 0.8-6, motion и look (меняй их от кадра к кадру под настроение секции), caption (до 60 символов, может быть пустой) со стилем и позицией, effects (0-2).\n"
+                                            + "Кадр kind=picture: asset (id из списка), layout — раскладка кадра из списка РАСКЛАДКИ (обязательно выбери под смысл кадра; «auto» — картинка мелко поверх размытой копии, лучше fill_focus, split_screen, polaroid и т.д.), seconds 0.8-6, motion и look (меняй их от кадра к кадру под настроение секции), caption (до 60 символов, может быть пустой) со стилем и позицией, effects (0-2).\n"
                                             "Кадр kind=card: полноэкранная карточка, asset=\"\", card_title (до 28 символов), card_subtitle, card_style, seconds 1.5-3.\n"
                                             "transition_out — переход в следующий кадр (cut — склейка). Подбирай картинки по смыслу описаний, не повторяй одну картинку. "
                                             + ("Это интро или финал: бери по одной картинке из разных групп. " if getattr(sec, "asset_group", "any") == "any" else
