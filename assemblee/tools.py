@@ -1,6 +1,7 @@
 """Polish-phase tools: small, enum-constrained edits of the EDL (never of the NLE directly)."""
+from . import vocab
 from .cards import CARD_STYLES
-from .edl import EDL, EFFECTS, LOOKS, MOTIONS, MUSIC, SFX, TRANSITIONS, Caption, clamp, pick, LIMITS
+from .edl import EDL, is_animated, EFFECTS, LOOKS, MOTIONS, MUSIC, SFX, TRANSITIONS, Caption, clamp, pick, LIMITS
 from .media import CAPTION_STYLES, POSITIONS
 
 
@@ -11,7 +12,24 @@ def _tool(name, desc, props, required):
 
 INT = {"type": "integer"}
 SHOT = {"type": "integer", "description": "shot number from the edit list"}
-POLISH_TOOLS = [
+def polish_tools(mode="strict"):
+    """Polish tools for a vocabulary mode: in rich mode update_shot also edits grade, camera, speed, text_anim,
+    effects with amounts and transition params (same validation as the build phase)."""
+    tools = [dict(t, function=dict(t["function"], parameters=dict(t["function"]["parameters"], properties=dict(t["function"]["parameters"]["properties"]))))
+             for t in _BASE]
+    frag = vocab.schema_fragments(mode, effect_params=False)
+    props = tools[0]["function"]["parameters"]["properties"]
+    props["effects"] = dict(frag["picture"]["effects"], description="replaces the effect list; [] removes all")
+    props["transition_out"] = frag["picture"]["transition_out"]
+    props["card_style"] = frag["card"]["card_style"]
+    if mode == "rich":
+        for k in ("grade", "camera", "speed", "transition_params", "transition_seconds"):
+            props[k] = frag["picture"][k]
+        props["text_anim"] = frag["card"]["text_anim"]
+    return tools
+
+
+_BASE = [
     _tool("update_shot", "Change fields of one shot. Only pass the fields you change.",
           {"shot": SHOT, "seconds": {"type": "number"}, "motion": {"type": "string", "enum": MOTIONS}, "look": {"type": "string", "enum": list(LOOKS)},
            "caption": {"type": "string", "description": "new caption text; empty string removes the caption"},
@@ -29,12 +47,14 @@ POLISH_TOOLS = [
     _tool("clear_sfx", "Remove all sound effects of a shot.", {"shot": SHOT}, ["shot"]),
     _tool("done", "Finish polishing.", {"note": {"type": "string"}}, []),
 ]
+POLISH_TOOLS = polish_tools("strict")
 
 
 class PolishTools:
     def __init__(self, edl: EDL, on_change):
         self.edl, self.on_change = edl, on_change
         self.finished = False
+        self.tools = polish_tools(edl.mode)
 
     def _shot(self, n):
         n = int(n)
@@ -53,7 +73,16 @@ class PolishTools:
             if "look" in f:
                 s.look = pick(f["look"], LOOKS, s.look, "look", w)
             if "effects" in f:
-                s.effects = [e for e in (pick(x, EFFECTS, None, "effect", w) for x in (f["effects"] or [])) if e][:2]
+                s.effects = self.edl.effects(f["effects"] or [], w)  # same resolver as the build phase (strict names or rich objects)
+            rich = self.edl.mode == "rich"
+            if rich and "grade" in f:
+                s.grade = vocab.resolve_grade(f["grade"], w)
+            if rich and "camera" in f:
+                s.camera = vocab.resolve_camera(f["camera"], w)
+            if rich and "speed" in f:
+                s.speed = self.edl.fit_speed(vocab.resolve_speed(f["speed"], is_animated(self.edl.catalog[s.asset]), w), s.seconds, w)
+            if not rich and any(k in f for k in ("grade", "camera", "speed", "text_anim")):
+                w.append("grade/camera/speed/text_anim need rich mode, ignored")
             if "caption" in f:
                 s.caption = Caption(str(f["caption"]).replace("\\n", "\n")[:120]) if f["caption"] else None
             if s.caption and "caption_style" in f:
@@ -67,8 +96,13 @@ class PolishTools:
                 s.subtitle = str(f["card_subtitle"])[:80]
             if "card_style" in f:
                 s.card_style = pick(f["card_style"], CARD_STYLES, s.card_style, "card_style", w)
-        if "transition_out" in f:
-            s.transition_out = pick(f["transition_out"], TRANSITIONS, s.transition_out, "transition_out", w)
+            if "text_anim" in f and self.edl.mode == "rich":
+                s.text_anim = vocab.resolve_text_anim(f["text_anim"], w)
+        if "transition_out" in f or "transition_params" in f:
+            s.transition_out, s.transition_params = self.edl.transition(
+                {"transition_out": f.get("transition_out", s.transition_out), "transition_params": f.get("transition_params", s.transition_params)}, w)
+        if "transition_seconds" in f:
+            s.transition_seconds = clamp(f["transition_seconds"], LIMITS["transition_seconds"], s.transition_seconds, "transition_seconds", w)
         self.on_change()
         return {"ok": True, "shot": int(shot), "warnings": w} if w else {"ok": True, "shot": int(shot)}
 
@@ -124,9 +158,9 @@ class PolishTools:
         return {"ok": True}
 
     def dispatch(self, name, args):
-        spec = next((t["function"] for t in POLISH_TOOLS if t["function"]["name"] == name), None)
+        spec = next((t["function"] for t in self.tools if t["function"]["name"] == name), None)
         if spec is None:
-            return {"error": f"unknown tool {name}; tools: {[t['function']['name'] for t in POLISH_TOOLS]}"}
+            return {"error": f"unknown tool {name}; tools: {[t['function']['name'] for t in self.tools]}"}
         allowed = spec["parameters"]["properties"]
         args = {k: v for k, v in (args or {}).items() if k in allowed}  # the flat action schema lets the model fill unrelated fields
         missing = [k for k in spec["parameters"]["required"] if k not in args]
