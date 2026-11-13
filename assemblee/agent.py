@@ -26,7 +26,7 @@ from . import vocab
 from .cards import CARD_STYLES, render_card
 from .compiler import compile_edl, picture_media
 from .config import FONT_BOLD, REPO
-from .edl import EDL, EFFECTS, LIMITS, LOOKS, MOTIONS, MUSIC, TRANSITIONS, Section
+from .edl import EDL, EFFECTS, LIMITS, clamp, LOOKS, MOTIONS, MUSIC, TRANSITIONS, Section
 from .events import EventLog
 from .llm import LLM, LLMError
 from .media import CAPTION_STYLES, POSITIONS, h, thumb
@@ -311,7 +311,7 @@ class Agent:
             "title": {"type": "string"}, "concept": {"type": "string"},
             "sections": {"type": "array", "minItems": 3, "maxItems": 8, "items": {"type": "object", "properties": {
                 "name": {"type": "string"}, "goal": {"type": "string"}, "target_seconds": {"type": "number"},
-                "music": {"type": "string", "enum": self.edl.music_choices()}, "music_db": {"type": "number"}, "visual_style": {"type": "string"},
+                "music": {"type": "string", "enum": self.edl.music_choices()}, "music_db": {"type": "number", "minimum": -24, "maximum": 3}, "visual_style": {"type": "string"},
                 "asset_group": {"type": "string", "enum": self.groups + ["any"]},
                 "transition_in": {"type": "string", "enum": TRANSITIONS},
                 "key_message": {"type": "string", "description": "главная мысль секции, 2-6 слов по-русски; обязательно появится в кадре"}},
@@ -339,7 +339,8 @@ class Agent:
                 name += "_2"
             names.add(name)
             self.edl.sections.append(Section(name=name, goal=s["goal"][:300], target_seconds=round(max(2.0, float(s["target_seconds"])) * scale, 1),
-                                             music=self.edl.resolve_music(s["music"], []), music_db=float(s.get("music_db", -10) or -10)))
+                                             music=self.edl.resolve_music(s["music"], []),
+                                             music_db=clamp(s.get("music_db", -10.0), LIMITS["music_db"], -10.0, "music_db", [])))
             self.edl.sections[-1].visual_style = s.get("visual_style", "")[:200]
             self.edl.sections[-1].asset_group = s.get("asset_group", "any") if s.get("asset_group") in self.groups else "any"
             self.edl.sections[-1].transition_in = s.get("transition_in", "cross_dissolve") if s.get("transition_in") in TRANSITIONS else "cross_dissolve"
@@ -449,18 +450,19 @@ class Agent:
                     if not full:
                         warnings.append(f"{s.label()}: {s.seconds}s is too short to see the text, raised to {need}s")
                     s.seconds = need
+            # 3) still far too long: drop shots from the end (keep at least 2)
+            while full and len(shots) > 2 and sum(s.seconds for s in shots) > sec.target_seconds * 1.4:
+                gone = shots.pop()
+                warnings.append(f"dropped {gone.label()} to keep the section near {sec.target_seconds}s")
             # 2b) the section's key message must be on screen (card at the start; for the last section at the end)
             key = getattr(sec, "key_message", "")
             if full and key and not self.key_on_screen(key, shots):
                 last = k + 1 == len(self.edl.sections)
                 card = self.edl.make_shot({"card_title": key, "card_style": "final" if last else "minimal", "seconds": 2.5}, sec.name, warnings)
                 if card:
+                    card.seconds = max(card.seconds, self.reading_seconds(card))
                     shots.insert(len(shots) if last else 0, card)
                     warnings.append(f"key message «{key}» was missing: added a card")
-            # 3) still far too long: drop shots from the end (keep at least 2)
-            while full and len(shots) > 2 and sum(s.seconds for s in shots) > sec.target_seconds * 1.4:
-                gone = shots.pop()
-                warnings.append(f"dropped {gone.label()} to keep the section near {sec.target_seconds}s")
             # 4) repeated pictures inside the section
             seen = set()
             for s in list(shots):
@@ -537,7 +539,7 @@ class Agent:
         shot = {"type": "integer", "minimum": 1, "maximum": n}
         section = {"type": "string", "enum": [x.name for x in self.edl.sections]}
         variants = []
-        for t in polish_tools(self.mode):
+        for t in polish_tools(self.mode, music=list(self.edl.music_library) or None):
             f = t["function"]
             if f["name"] == "done" or (ops and f["name"] not in ops):
                 continue
@@ -589,6 +591,11 @@ class Agent:
                     res = {"error": f"shot {args['shot']} was already deleted in this answer"}
                 elif now + 1 != args["shot"]:
                     args = {**args, "shot": now + 1, "listed_as": args["shot"]}
+            if res is None and op == "move_shot" and isinstance(args.get("to"), int) and 1 <= args["to"] <= len(before):
+                anchor = before[args["to"] - 1]  # "to" also refers to the list the model saw
+                pos = next((i for i, s in enumerate(self.edl.shots) if s is anchor), None)
+                if pos is not None:
+                    args = {**args, "to": pos + 1}
             self.ev.emit("tool_call", id=cid, name=op, args=args)
             args.pop("listed_as", None)
             t = time.time()
