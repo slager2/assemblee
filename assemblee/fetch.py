@@ -440,8 +440,8 @@ PLAN_SCHEMA = {
         "required": ["name", "shows", "queries"]}}},
     "required": ["groups"]}
 
-CHECK_SCHEMA = {"type": "object", "properties": {"fits": {"type": "boolean"}, "what": {"type": "string"},
-                                                 "mood": {"type": "string"}}, "required": ["fits", "what", "mood"]}
+CHECK_SCHEMA = {"type": "object", "properties": {"fits": {"type": "boolean"}, "what": {"type": "string", "maxLength": 120},
+                                                 "mood": {"type": "string", "maxLength": 40}}, "required": ["fits", "what", "mood"]}
 
 PLAN_PROMPT = """Ты подбираешь картинки для вертикального видеоролика. Задача пользователя:
 «{task}»
@@ -454,7 +454,8 @@ PLAN_PROMPT = """Ты подбираешь картинки для вертик�
 Всего запросов 3-8. Ищем фотографии реальных сцен, не логотипы и не схемы."""
 
 CHECK_PROMPT = """Картинка для видеоролика на тему «{task}». Нужна сцена: {shows}.
-fits — подходит ли картинка для этой сцены (true/false; false для схем, текста, логотипов, карт, явно не той темы).
+fits — подходит ли картинка для этой сцены (true/false; false для схем, текста, логотипов, карт, явно не той темы;
+false и для старинных картин, гравюр, рисунков и чёрно-белых архивных фото, если тема не историческая — нужно современное цветное фото).
 what — что изображено, по-русски, до 12 слов. mood — настроение, 1-3 слова по-русски."""
 
 
