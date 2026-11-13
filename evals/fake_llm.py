@@ -47,6 +47,20 @@ class FakeLLM:
             node = node[k]
         return node.get("enum", [])
 
+    @staticmethod
+    def _choices(node):
+        """Enum values of a schema node, also inside anyOf/oneOf or an object's id/name property (rich vocabulary)."""
+        if "enum" in node:
+            return list(node["enum"])
+        for k in ("anyOf", "oneOf"):
+            if k in node:
+                return [v for sub in node[k] for v in FakeLLM._choices(sub)]
+        props = node.get("properties", {})
+        for k in ("id", "name", "effect"):
+            if k in props:
+                return [{k: v} for v in FakeLLM._choices(props[k])]
+        return []
+
     def json(self, messages, schema, max_tokens=0, temperature=0):
         props = schema["properties"]
         rng = self.rng
@@ -66,6 +80,7 @@ class FakeLLM:
             variants = props["shots"]["items"]["anyOf"]
             pic = next(v for v in variants if "asset" in v["properties"])["properties"]
             card = next(v for v in variants if "card_title" in v["properties"])["properties"]
+            fx = self._choices(pic.get("effects", {}).get("items", {}))  # strict: enum of names; rich: maybe objects
             shots = []
             if rng.random() < 0.4:
                 shots.append({"kind": "card", "card_title": self._text(), "card_subtitle": "", "card_style": rng.choice(card["card_style"]["enum"]),
@@ -75,7 +90,7 @@ class FakeLLM:
                               "motion": rng.choice(pic["motion"]["enum"]), "look": rng.choice(pic["look"]["enum"]),
                               "caption": self._text() if rng.random() < 0.7 else "", "caption_style": rng.choice(pic["caption_style"]["enum"]),
                               "caption_position": rng.choice(pic["caption_position"]["enum"]),
-                              "effects": rng.sample(pic["effects"]["items"]["enum"], rng.randint(0, 2)),
+                              "effects": rng.sample(fx, min(len(fx), rng.randint(0, 2))),
                               "transition_out": rng.choice(["cut", "cut", rng.choice(pic["transition_out"]["enum"])])})
             out = {"shots": shots}
         elif "actions" in props:
