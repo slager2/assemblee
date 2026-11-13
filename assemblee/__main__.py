@@ -26,7 +26,7 @@ def main(argv=None):
     r = sub.add_parser("run", help="edit a video")
     r.add_argument("--task", default="Удиви меня.", help="what to make (text or @file); with --surprise an open request is enough")
     r.add_argument("--surprise", action="store_true", help="the model invents the concept itself and decides what pictures and music to fetch online")
-    r.add_argument("--music", choices=["builtin", "web"], default="builtin", help="web: search and download licensed music, beat-snap the cuts")
+    r.add_argument("--music", choices=["builtin", "web"], default=None, help="web: search and download licensed music, beat-snap the cuts")
     r.add_argument("--ideas", action=argparse.BooleanOptionalAction, default=None, help="inspiration recipes in the prompts (default: on in rich mode)")
     r.add_argument("--assets", type=Path, help="folder of pictures (with --fetch: where downloaded pictures go)")
     r.add_argument("--fetch", default=None, help="search and download licensed pictures for this text before editing")
@@ -51,7 +51,7 @@ def main(argv=None):
     a = ap.parse_args(argv)
     if getattr(a, "max", False):
         a.vocab, a.guardrails, a.think, a.planner, a.director = "rich", "light", True, "9b", True
-        a.music = "web" if a.music == "builtin" else a.music
+        a.music = a.music or "web"  # --max fetches music unless --music builtin is given explicitly
 
     llm = LLM()
     if not llm.health():
@@ -79,7 +79,7 @@ def main(argv=None):
     summary = Agent(task, a.assets, a.brief, run_dir, seconds=a.seconds, slots=a.slots, llm=llm, max_polish_turns=a.polish_turns,
                     review_rounds=a.review_rounds, output_name=a.name, mode=a.vocab, fetch=a.fetch, guardrails=a.guardrails,
                     think=a.think, think_budget=a.think_budget, planner=a.planner, director=a.director,
-                    music_web=a.music == "web", ideas=a.ideas, surprise=a.surprise, voice=a.voice).run()
+                    music_web=(a.music or "builtin") == "web", ideas=a.ideas, surprise=a.surprise, voice=a.voice).run()
     print(json.dumps({k: v for k, v in summary.items() if k != "edl"}, ensure_ascii=False, indent=1))
 
 
