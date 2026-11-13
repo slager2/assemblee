@@ -50,6 +50,7 @@ def load_or_build(root: Path, llm=None, on_item=None) -> dict:
                 entry["what"], entry["mood"] = v["what"][:120], v["mood"][:40]
             except Exception as e:  # keep the file usable even if vision fails
                 entry["mood"] = f"(не описано: {str(e)[:40]})"
+                entry["mtime"] = None  # describe it again next time instead of caching the failure
         cat[key] = entry
         on_item and on_item(key, entry)
         out.write_text(json.dumps(cat, ensure_ascii=False, indent=1))
