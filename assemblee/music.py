@@ -246,7 +246,8 @@ def download_music(results, dest_dir, max_tracks=6, on_event=None, timeout=60):
         if len(written) >= max_tracks:
             break
         if _key(r) in have and Path(have[_key(r)]["path"]).exists():
-            written.append(have[_key(r)])
+            if have[_key(r)] not in written:
+                written.append(have[_key(r)])
             continue
         cid, t0 = uuid.uuid4().hex[:8], time.time()
         emit("tool_call", {"id": cid, "name": "download_music", "args": {"url": r["audio_url"], "title": r["title"][:80]}})
@@ -281,6 +282,7 @@ def download_music(results, dest_dir, max_tracks=6, on_event=None, timeout=60):
             credits[entry["asset_id"]] = entry
             _save_json(dest / "credits.json", credits)
             written.append(entry)
+            have[entry["source_key"]] = entry
             emit("tool_result", {"id": cid, "name": "download_music", "ok": True, "seconds": round(time.time() - t0, 2),
                                  "result": {"asset_id": entry["asset_id"], "license": r["license"], "mb": round(len(data) / 1e6, 1)}})
         except Exception as e:
