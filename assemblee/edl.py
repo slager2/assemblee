@@ -57,6 +57,8 @@ def clean_text(text, limit):
     """Captions are drawn with DejaVu fonts, which have no emoji: strip them and tidy spaces. A leading style tag
     like "[glitch] " is metadata the model copied from an edit list, never caption text."""
     t = STYLE_TAG.sub("", EMOJI.sub("", str(text or "")))
+    if re.fullmatch(r"[\s\[\]]*(система|system)?[\s\[\]:]*", t, flags=re.I):  # only a header tag, no words: no caption at all
+        return ""
     return re.sub(r"[ \t]+", " ", t).strip()[:limit]
 
 
