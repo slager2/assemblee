@@ -24,7 +24,10 @@ def main(argv=None):
     ap = argparse.ArgumentParser(prog="assemblee")
     sub = ap.add_subparsers(dest="cmd", required=True)
     r = sub.add_parser("run", help="edit a video")
-    r.add_argument("--task", required=True, help="what to make (text or @file)")
+    r.add_argument("--task", default="Удиви меня.", help="what to make (text or @file); with --surprise an open request is enough")
+    r.add_argument("--surprise", action="store_true", help="the model invents the concept itself and decides what pictures and music to fetch online")
+    r.add_argument("--music", choices=["builtin", "web"], default="builtin", help="web: search and download licensed music, beat-snap the cuts")
+    r.add_argument("--ideas", action=argparse.BooleanOptionalAction, default=None, help="inspiration recipes in the prompts (default: on in rich mode)")
     r.add_argument("--assets", type=Path, help="folder of pictures (with --fetch: where downloaded pictures go)")
     r.add_argument("--fetch", default=None, help="search and download licensed pictures for this text before editing")
     r.add_argument("--vocab", choices=["strict", "rich"], default="strict", help="strict: small menus; rich: every engine transition/effect, grade, camera, text animation")
@@ -47,6 +50,7 @@ def main(argv=None):
     a = ap.parse_args(argv)
     if getattr(a, "max", False):
         a.vocab, a.guardrails, a.think, a.planner, a.director = "rich", "light", True, "9b", True
+        a.music = "web" if a.music == "builtin" else a.music
 
     llm = LLM()
     if not llm.health():
@@ -61,19 +65,20 @@ def main(argv=None):
     run_dir = RUNS / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
     if a.assets is None:
-        if not a.fetch:
-            sys.exit("--assets is required unless --fetch is given")
+        if not (a.fetch or a.surprise):
+            sys.exit("--assets is required unless --fetch or --surprise is given")
         a.assets = run_dir / "assets"
     (run_dir / "task.json").write_text(json.dumps({"run_id": run_id, "task": task, "assets_dir": str(a.assets), "briefs": [str(b) for b in a.brief],
                                                     "vocab": a.vocab, "fetch": a.fetch, "guardrails": a.guardrails, "think": a.think,
-                                                    "planner": a.planner, "director": a.director,
+                                                    "planner": a.planner, "director": a.director, "surprise": a.surprise, "music": a.music,
                                                     "model": llm.model_name(), "seconds": a.seconds, "slots": a.slots, "created_at": time.time()},
                                                    ensure_ascii=False, indent=1))
     print("run:", run_dir, flush=True)
     from .agent import Agent
     summary = Agent(task, a.assets, a.brief, run_dir, seconds=a.seconds, slots=a.slots, llm=llm, max_polish_turns=a.polish_turns,
                     review_rounds=a.review_rounds, output_name=a.name, mode=a.vocab, fetch=a.fetch, guardrails=a.guardrails,
-                    think=a.think, think_budget=a.think_budget, planner=a.planner, director=a.director).run()
+                    think=a.think, think_budget=a.think_budget, planner=a.planner, director=a.director,
+                    music_web=a.music == "web", ideas=a.ideas, surprise=a.surprise).run()
     print(json.dumps({k: v for k, v in summary.items() if k != "edl"}, ensure_ascii=False, indent=1))
 
 
