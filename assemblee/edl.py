@@ -111,6 +111,7 @@ class Shot:
     speed: float = 100.0  # animated/video pictures only
     transition_params: dict = field(default_factory=dict)
     text_anim: str = "none"  # cards only
+    narration: str = ""  # voice-over spoken from this shot's start (own line, besides the section narration); "" = none
 
     def label(self):
         return self.title if self.kind == "card" else self.asset
@@ -124,6 +125,8 @@ class Section:
     music: str = "none"  # a built-in mood (MUSIC) or a downloaded track id from EDL.music_library ("music/<slug>")
     music_db: float = -10.0
     music_start: float | None = None  # track time at the section's first cut; None = the track's best_start (0 for moods)
+    narration: str = ""  # voice-over spoken from the section's first cut (Russian, spoken style); "" = silent
+    narration_voice: str = ""  # "" = the EDL's voice
 
 
 def is_animated(entry):
@@ -144,6 +147,10 @@ class EDL:
         self.shots: list[Shot] = []
         self.sfx: list[dict] = []  # {"kind", "shot" (1-based), "at": start|end}
         self.music_library: dict = {}  # track id -> music.gather_music entry (path, bpm, beats, best_start, duration...)
+        self.voice: str | None = None  # voice-over voice (voice.VOICES) or None = no voice-over
+        self.voice_rate: float = 1.0
+        self.duck_db: float = 12.0  # the music goes this much quieter under speech
+        self.narration_clips: list[dict] = []  # filled by fit_narration
 
     # ---- validation ----
     def transition(self, raw, warnings):
@@ -260,6 +267,48 @@ class EDL:
                 return bed, (bed["music_start"] or 0.0) + times[idx[0]][0] - bed["start"]
         return None, None
 
+    # ---- voice-over ----
+    def fit_narration(self, synth=None, on_status=None):
+        """Synthesizes every narration line and lengthens the shots it covers so the line fits: a narrated shot (or
+        section) lasts at least the spoken length + voice.LEAD + voice.TAIL. Pure arithmetic on the audio length,
+        idempotent (shots only grow). Fills self.narration_clips: shot, text, voice, path, seconds, phrases, start, end."""
+        from . import voice as voice_mod
+        self.narration_clips = []
+        if not self.voice:
+            return []
+        lines = []  # (first shot, last shot, text, voice)
+        for sec in self.sections:
+            idx = self.section_shots(sec.name)
+            if idx and sec.narration.strip():
+                lines.append((idx[0], idx[-1], sec.narration, sec.narration_voice or self.voice))
+        for i, s in enumerate(self.shots):
+            if s.narration.strip():
+                lines.append((i, i, s.narration, self.voice))
+        lines.sort(key=lambda x: x[0])
+        got = (synth or voice_mod.synthesize_many)([(t, v, self.voice_rate) for _, _, t, v in lines], on_status) if lines else []
+        for (a, b, text, v), vo in zip(lines, got):
+            extra = vo.seconds + voice_mod.LEAD + voice_mod.TAIL - sum(x.seconds for x in self.shots[a:b + 1])
+            for _ in range(4):  # even share per shot, the remainder goes to shots that still have room under their limit
+                room = [x for x in self.shots[a:b + 1] if x.seconds < (LIMITS["card_seconds"][1] if x.kind == "card" else LIMITS["picture_seconds"][1]) - 0.01]
+                if extra <= 0.005 or not room:
+                    break
+                share = extra / len(room)
+                for x in room:
+                    top = LIMITS["card_seconds"][1] if x.kind == "card" else LIMITS["picture_seconds"][1]
+                    add = min(share, top - x.seconds)
+                    x.seconds = round(x.seconds + add + 0.004, 2)
+                    extra -= add + 0.004
+            self.narration_clips.append({"shot": a + 1, "text": text, "voice": v, "path": str(vo.path), "seconds": vo.seconds, "phrases": vo.phrases})
+        times = self.times()
+        for c in self.narration_clips:
+            c["start"] = round(times[c["shot"] - 1][0] + voice_mod.LEAD, 2)
+            c["end"] = round(c["start"] + c["seconds"], 2)
+        for prev, cur in zip(self.narration_clips, self.narration_clips[1:]):  # lines never overlap
+            if cur["start"] < prev["end"] + 0.1:
+                shift = round(prev["end"] + 0.1 - cur["start"], 2)
+                cur["start"], cur["end"] = round(cur["start"] + shift, 2), round(cur["end"] + shift, 2)
+        return self.narration_clips
+
     # ---- queries ----
     def total(self):
         return round(sum(s.seconds for s in self.shots), 2)
@@ -302,7 +351,10 @@ class EDL:
                 if s.transition_params:
                     row["transition_params"] = s.transition_params
             rows.append(row)
-        return {"total_seconds": self.total(), "mode": self.mode, "sections": [asdict(x) for x in self.sections], "shots": rows, "sfx": self.sfx}
+        out = {"total_seconds": self.total(), "mode": self.mode, "sections": [asdict(x) for x in self.sections], "shots": rows, "sfx": self.sfx}
+        if self.voice:
+            out["voice"] = self.voice
+        return out
 
     def to_dict(self):
         return {"sections": [asdict(x) for x in self.sections], "shots": [asdict(s) for s in self.shots], "sfx": self.sfx}

@@ -15,6 +15,9 @@ from .mcp import MCP, MCPError
 from .media import animated_to_vertical_mp4, caption_png, fit_vertical, media_duration
 
 
+DUCK_PRE, DUCK_POST, DUCK_RAMP = 0.15, 0.35, 0.3  # the music dips this long before/after speech, ramp seconds
+
+
 class Compiled:
     def __init__(self, fc, clip_ids, times, stats):
         self.fc, self.clip_ids, self.times, self.stats = fc, clip_ids, times, stats
@@ -100,7 +103,10 @@ def _compile_into(fc, edl: EDL, on_call=None, on_progress=None) -> Compiled:
             warnings.append(f"{what}.{p}={v}: {str(err)[:120]}")
 
     warnings = []
-    run("file.newSequence", {"name": "assemblee", "width": W, "height": H, "fps": FPS, "video": 3, "audio": 4})
+    run("file.newSequence", {"name": "assemblee", "width": W, "height": H, "fps": FPS, "video": 3, "audio": 5})
+    if edl.voice:  # narration lengthens its shots first: everything below (beds, sfx, captions) uses the final times
+        on_progress and on_progress("voice-over")
+        edl.fit_narration(on_status=on_progress)
     times = edl.times()
     clip_ids = []
     for i, (shot, (s, e)) in enumerate(zip(edl.shots, times), 1):
@@ -182,6 +188,7 @@ def _compile_into(fc, edl: EDL, on_call=None, on_progress=None) -> Compiled:
     # music: merge consecutive sections with the same mood into one bed
     # a library track (or a mood with music_start) plays so that its music_start lands on the bed's first cut
     beds = edl.music_beds()
+    bed_clips = []
     for k, bed in enumerate(beds):
         path = edl.music_path(bed["mood"])
         track = bed.pop("track", None)
@@ -209,6 +216,7 @@ def _compile_into(fc, edl: EDL, on_call=None, on_progress=None) -> Compiled:
             place["sourceIn"] = {"seconds": src}
         cid = run("timeline.place", place)["clips"][0]
         run("clip.audioGain", {"clips": [cid], "mode": "set", "db": float(bed["db"])})
+        bed_clips.append((cid, start, start + dur))
         for edge in ("in", "out"):
             try:
                 run("sequence.applyAudioTransition", {"clip": cid, "effect": "constant_power", "frames": 18, "edge": edge, "align": "start" if edge == "in" else "end"})
@@ -222,5 +230,30 @@ def _compile_into(fc, edl: EDL, on_call=None, on_progress=None) -> Compiled:
         d = media_duration(path)
         t = times[n][0] if fx.get("at", "start") == "start" else max(0.0, times[n][1] - d / 2)
         run("timeline.place", {"item": imp(path), "track": "A3" if k % 2 == 0 else "A4", "seconds": t, "insert": False, "video": False, "duration": {"seconds": d}})
+    # voice-over on its own track (A5), the music ducked under it: keyframes on the music clips' Volume level (dB, on top of the gain)
+    ducks = []
+    for nc in edl.narration_clips:
+        run("timeline.place", {"item": imp(nc["path"]), "track": "A5", "seconds": nc["start"], "insert": False, "video": False, "duration": {"seconds": nc["seconds"]}})
+        if ducks and nc["start"] - DUCK_PRE <= ducks[-1][1] + DUCK_POST:
+            ducks[-1][1] = nc["end"]  # lines close together share one dip
+        else:
+            ducks.append([nc["start"], nc["end"]])
+    if ducks and edl.duck_db:
+        for cid, a, b in bed_clips:
+            pts = [(a, 0.0)]
+            for ds, de in ducks:
+                lo, hi = ds - DUCK_PRE, de + DUCK_POST
+                if hi <= a or lo >= b:
+                    continue
+                pts += [(max(a, lo - DUCK_RAMP), 0.0), (max(a, lo), -edl.duck_db), (min(b, hi), -edl.duck_db), (min(b, hi + DUCK_RAMP), 0.0)]
+            out = []
+            for t, v in pts:  # strictly increasing times
+                if not out or t > out[-1][0] + 0.001:
+                    out.append((t, v))
+            if len(out) > 1:
+                try:
+                    kf(cid, "volume", "level", out)
+                except MCPError as err:
+                    warnings.append(f"music ducking: {str(err)[:120]}")
     stats = {"calls": calls, "seconds": round(time.time() - t0, 1), "beds": beds, "warnings": warnings}
     return Compiled(fc, clip_ids, times, stats)
