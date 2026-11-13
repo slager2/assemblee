@@ -37,6 +37,12 @@ class LLM:
         except Exception:
             return False
 
+    def count_tokens(self, text):
+        try:
+            return len(self._post("/tokenize", {"content": text}).get("tokens", []))
+        except LLMError:
+            return len(text) // 3
+
     def model_name(self):
         try:
             with urllib.request.urlopen(self.base + "/v1/models", timeout=5) as r:
@@ -79,9 +85,9 @@ class LLM:
             msg["reasoning_content"] = (msg.get("reasoning_content") or "") + head.replace("<think>", "").strip()
             msg["content"] = content.strip()
         reasoning = msg.get("reasoning_content") or ""
-        self.totals.setdefault("reasoning_chars", 0)
-        self.totals["reasoning_chars"] += len(reasoning)
-        return {"message": msg, "reasoning": reasoning, "finish_reason": r["choices"][0].get("finish_reason"), "usage": usage, "seconds": round(dt, 2),
+        reasoning_tokens = self.count_tokens(reasoning) if reasoning else 0
+        self.totals["reasoning_tokens"] = self.totals.get("reasoning_tokens", 0) + reasoning_tokens
+        return {"message": msg, "reasoning": reasoning, "reasoning_tokens": reasoning_tokens, "finish_reason": r["choices"][0].get("finish_reason"), "usage": usage, "seconds": round(dt, 2),
                 "tokens_per_second": round(timings.get("predicted_per_second") or (usage.get("completion_tokens", 0) / dt if dt else 0), 1),
                 "prompt_per_second": round(timings.get("prompt_per_second", 0) or 0, 1)}
 
