@@ -32,6 +32,7 @@ RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,200}$")
 POLL_SECONDS = 0.25
 KEEPALIVE_SECONDS = 15.0
 RUNS_KEY = web.AppKey("runs_dir", Path)
+STOP_KEY = web.AppKey("stopping", asyncio.Event)
 
 
 # ---------------------------------------------------------------- helpers
@@ -218,8 +219,9 @@ async def stream(request: web.Request) -> web.StreamResponse:
     offset = 0
     pending = b""
     last_write = time.monotonic()
+    stopping = request.app[STOP_KEY]
     try:
-        while True:
+        while not stopping.is_set():
             chunk = b""
             try:
                 size = path.stat().st_size
@@ -258,8 +260,11 @@ async def stream(request: web.Request) -> web.StreamResponse:
             if time.monotonic() - last_write > KEEPALIVE_SECONDS:
                 await resp.write(b": keepalive\n\n")
                 last_write = time.monotonic()
-            await asyncio.sleep(POLL_SECONDS)
-    except (ConnectionResetError, asyncio.CancelledError):
+            try:
+                await asyncio.wait_for(stopping.wait(), POLL_SECONDS)
+            except asyncio.TimeoutError:
+                pass
+    except ConnectionResetError:
         pass
     return resp
 
@@ -287,6 +292,12 @@ async def no_cache_static(request: web.Request, handler):
 def make_app(runs: Path) -> web.Application:
     app = web.Application(middlewares=[no_cache_static])
     app[RUNS_KEY] = runs.resolve()
+    app[STOP_KEY] = asyncio.Event()
+
+    async def on_shutdown(app: web.Application) -> None:
+        app[STOP_KEY].set()  # lets open SSE streams finish right away
+
+    app.on_shutdown.append(on_shutdown)
     app.router.add_get("/", index)
     app.router.add_get("/api/runs", list_runs)
     app.router.add_get("/api/runs/{run_id}", get_run)
