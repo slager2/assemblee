@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Local llama-server for assemblee (RTX 3050 6 GB, Vulkan1).  See docs/llm-tuning.md.
 #
-#   scripts/serve_llm.sh start [agent|planner]   start (default: agent), wait until healthy
+#   scripts/serve_llm.sh start [agent|planner][-think]   start (default: agent), wait until healthy
+#     -think: a request may turn Qwen3.5 thinking on (chat_template_kwargs.enable_thinking=true,
+#     reasoning_budget_tokens); off by default; thoughts come back in reasoning_content
 #   scripts/serve_llm.sh stop                    stop whatever this script started
 #   scripts/serve_llm.sh status                  pid, profile, health, VRAM, RSS
 #   scripts/serve_llm.sh restart [profile]
@@ -22,7 +24,14 @@ HOST="${LLM_HOST:-127.0.0.1}"
 DEVICE="${LLM_DEVICE:-Vulkan1}"
 
 profile_args() {
-  case "$1" in
+  local base="${1%-think}"
+  if [[ "$base" != "$1" ]]; then
+    # thinking allowed per request, off by default; thoughts go to reasoning_content
+    echo --reasoning auto --reasoning-format deepseek --chat-template-kwargs '{"enable_thinking":false}'
+  else
+    echo --reasoning off
+  fi
+  case "$base" in
     agent)
       # 4B + vision.  q8_0 KV: same speed as f16, half the VRAM/RAM per cached prompt,
       # so 64k fits on the GPU and the agent's KV survives a vision request.
@@ -36,12 +45,13 @@ profile_args() {
            -b 2048 -ub 512 -t 6 --poll 0
       ;;
     planner)
-      # 9B text-only planner, fully on GPU (~5.2 GB VRAM at 32k q8_0).
+      # 9B text-only planner, fully on GPU (~5.2 GB VRAM at 32k q8_0).  Two slots in one
+      # unified 32k pool so the agent can build two sections at once (same KV memory as one slot).
       echo -m "$MODELS_DIR/Qwen3.5-9B-IQ4_XS.gguf" \
            -c 32768 -ctk q8_0 -ctv q8_0 -fa on \
-           --parallel 1 --cache-ram 512 -t 6 --poll 0
+           --parallel 2 --kv-unified --no-cache-idle-slots --cache-ram 512 -t 6 --poll 0
       ;;
-    *) echo "unknown profile: $1 (agent|planner)" >&2; exit 2 ;;
+    *) echo "unknown profile: $1 (agent|planner, optionally -think)" >&2; exit 2 ;;
   esac
 }
 
@@ -86,7 +96,7 @@ do_start() {
   # shellcheck disable=SC2046
   nohup "$LLAMA_SERVER" $(profile_args "$profile") \
       --device "$DEVICE" -ngl 99 --host "$HOST" --port "$PORT" \
-      --jinja --reasoning off --no-webui ${LLM_EXTRA_ARGS:-} >"$log" 2>&1 &
+      --jinja --no-webui ${LLM_EXTRA_ARGS:-} >"$log" 2>&1 &
   pid=$!
   echo "$pid" >"$PIDFILE"; echo "$profile" >"$PROFILEFILE"
   for _ in $(seq 1 240); do

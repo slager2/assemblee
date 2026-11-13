@@ -49,7 +49,9 @@ _BASE = [
     _tool("delete_shot", "Remove one shot.", {"shot": SHOT}, ["shot"]),
     _tool("move_shot", "Move a shot to a new position (1-based).", {"shot": SHOT, "to": INT}, ["shot", "to"]),
     _tool("set_section_music", "Music bed of a section.", {"section": {"type": "string"}, "mood": {"type": "string", "enum": list(MUSIC)},
-                                                            "volume_db": {"type": "number", "description": "-18 quiet .. 0 loud"}}, ["section", "mood"]),
+                                                            "volume_db": {"type": "integer", "minimum": -24, "maximum": 3, "description": "-18 quiet .. 0 loud"}}, ["section", "mood"]),
+    _tool("retime_section", "Make a section last about this many seconds: every shot of the section is scaled proportionally.",
+          {"section": {"type": "string"}, "seconds": {"type": "number"}}, ["section", "seconds"]),
     _tool("add_sfx", "Sound effect at the start or end of a shot (max 8 in total).",
           {"kind": {"type": "string", "enum": list(SFX)}, "shot": SHOT, "at": {"type": "string", "enum": ["start", "end"]}}, ["kind", "shot"]),
     _tool("clear_sfx", "Remove all sound effects of a shot.", {"shot": SHOT}, ["shot"]),
@@ -59,8 +61,9 @@ POLISH_TOOLS = polish_tools("strict")
 
 
 class PolishTools:
-    def __init__(self, edl: EDL, on_change):
-        self.edl, self.on_change = edl, on_change
+    def __init__(self, edl: EDL, on_change, guardrails="full"):
+        """guardrails != "full": sound-variety rules are warnings, not refusals (the model decides)."""
+        self.edl, self.on_change, self.guardrails = edl, on_change, guardrails
         self.finished = False
         self.tools = polish_tools(edl.mode, music=list(edl.music_library))
 
@@ -146,19 +149,41 @@ class PolishTools:
         self.on_change()
         return {"ok": True, "warnings": w} if w else {"ok": True}
 
+    def retime_section(self, section, seconds):
+        idx = self.edl.section_shots(section)
+        if not idx:
+            return {"error": f"section has no shots; sections: {[x.name for x in self.edl.sections]}"}
+        w = []
+        want = clamp(seconds, (1.0, 60.0), 0, "seconds", w)
+        have = sum(self.edl.shots[i].seconds for i in idx)
+        for i in idx:
+            s = self.edl.shots[i]
+            lim = LIMITS["card_seconds"] if s.kind == "card" else LIMITS["picture_seconds"]
+            s.seconds = round(min(lim[1], max(lim[0], s.seconds * want / have)), 2)
+        got = round(sum(self.edl.shots[i].seconds for i in idx), 2)
+        if abs(got - want) > 0.3:
+            w.append(f"shot limits allow {got}s here; add or remove shots for {want}s")
+        self.on_change()
+        return {"ok": True, "section_seconds": got, "total_seconds": self.edl.total(), **({"warnings": w} if w else {})}
+
     def add_sfx(self, kind, shot, at="start"):
         self._shot(shot)
         if len(self.edl.sfx) >= 8:
             return {"error": "already 8 sound effects"}
         w = []
         kind = pick(kind, SFX, "whoosh", "kind", w)
+        strict = self.guardrails == "full"
         if any(x["shot"] == int(shot) for x in self.edl.sfx):
-            return {"error": f"shot {shot} already has a sound effect; pick another strong moment"}
+            if strict:
+                return {"error": f"shot {shot} already has a sound effect; pick another strong moment"}
+            w.append(f"shot {shot} now has more than one sound effect")
         if sum(1 for x in self.edl.sfx if x["kind"] == kind) >= 2:
-            return {"error": f"'{kind}' already used twice; vary the sounds: {[k for k in SFX if k != kind]}"}
+            if strict:
+                return {"error": f"'{kind}' already used twice; vary the sounds: {[k for k in SFX if k != kind]}"}
+            w.append(f"'{kind}' is used {sum(1 for x in self.edl.sfx if x['kind'] == kind) + 1} times now")
         self.edl.sfx.append({"kind": kind, "shot": int(shot), "at": "end" if at == "end" else "start"})
         self.on_change()
-        return {"ok": True}
+        return {"ok": True, "warnings": w} if w else {"ok": True}
 
     def clear_sfx(self, shot):
         before = len(self.edl.sfx)
