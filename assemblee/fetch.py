@@ -55,11 +55,11 @@ class FetchError(RuntimeError):
 
 # ---------------------------------------------------------------- http
 
-def _get(url, timeout=20, retries=2, max_bytes=None, accept="application/json"):
+def _get(url, timeout=20, retries=2, max_bytes=None, accept="application/json", headers=None):
     """GET with retries (5xx, 429 with Retry-After, network errors). Returns (bytes, headers)."""
     last = None
     for attempt in range(retries + 1):
-        req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": accept})
+        req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": accept, **(headers or {})})
         try:
             with urllib.request.urlopen(req, timeout=timeout) as r:
                 n = int(r.headers.get("Content-Length") or 0)
