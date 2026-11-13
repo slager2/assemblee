@@ -89,8 +89,8 @@ class Run:
         return ev
 
     def wait(self, units: float):
-        """Sleep a share of the total duration (the script has ~200 units)."""
-        time.sleep(max(0.0, units * self.duration / 200.0))
+        """Sleep a share of the total duration (the script has ~135 units)."""
+        time.sleep(max(0.0, units * self.duration / 135.0))
 
     def llm(self, content: str, calls: list[tuple[str, dict]], think: float = 3.0):
         self.turn += 1
