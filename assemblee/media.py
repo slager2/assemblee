@@ -100,10 +100,16 @@ def thumb(src, size=(144, 256)) -> Path:
     return out
 
 
-def caption_png(text, style, position) -> Path:
-    out = cache_dir("captions") / f"{h(text, style, position, RENDER_VERSION)}.png"
-    if out.exists():
-        return out
+def caption_png(text, style, position, params=None) -> Path:
+    """Caption overlay PNG for any registered style (templates.CAPTION_IDS); unknown styles fall back to subtitle."""
+    from . import templates
+    if style not in templates.REG["caption"]:
+        style = "subtitle"
+    return templates.render_caption(text, style, position, params)
+
+
+def _legacy_caption(text, style, position):
+    """The five original caption styles (registered in templates as subtitle/cartoon/retro2011/system/glitch)."""
     img = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
     y_anchor = {"top": 0.15, "center": 0.5, "bottom": 0.75}.get(position, 0.75)  # inside the Reels/Shorts safe zone
@@ -164,8 +170,7 @@ def caption_png(text, style, position) -> Path:
         for i, l in enumerate(lines):
             tw = d.textlength(l, font=f)
             d.text(((W - tw) / 2, y0 + i * lh), l, font=f, fill=(255, 255, 255, 255), stroke_width=6, stroke_fill=(0, 0, 0, 235))
-    img.save(out)
-    return out
+    return img
 
 
 def media_duration(path) -> float:
