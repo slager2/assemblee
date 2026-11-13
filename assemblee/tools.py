@@ -128,19 +128,27 @@ class PolishTools:
 
     def move_shot(self, shot, to):
         s = self._shot(shot)
-        to = max(1, min(len(self.edl.shots), int(to)))
+        frm, to = int(shot), max(1, min(len(self.edl.shots), int(to)))
+        order = list(range(1, len(self.edl.shots) + 1))
+        order.insert(to - 1, order.pop(frm - 1))
+        new_pos = {old: new for new, old in enumerate(order, 1)}
         self.edl.shots.remove(s)
         self.edl.shots.insert(to - 1, s)
+        self.edl.sfx = [{**x, "shot": new_pos[x["shot"]]} for x in self.edl.sfx if x["shot"] in new_pos]  # sounds follow their shots
+        # the moved shot joins the section it lands in, so sections stay contiguous (music beds, beat snapping)
+        nb = self.edl.shots[to - 2] if to > 1 else (self.edl.shots[1] if len(self.edl.shots) > 1 else s)
+        s.section = nb.section
         self.on_change()
         return {"ok": True, "order": [x.label() for x in self.edl.shots]}
 
-    def set_section_music(self, section, mood, volume_db=-10, start=None):
+    def set_section_music(self, section, mood, volume_db=None, start=None):
         sec = next((x for x in self.edl.sections if x.name == section), None)
         if not sec:
             return {"error": f"unknown section; sections: {[x.name for x in self.edl.sections]}"}
         w = []
         sec.music = self.edl.resolve_music(mood, w, default=sec.music)
-        sec.music_db = clamp(volume_db, LIMITS["music_db"], -10.0, "volume_db", w)
+        if volume_db is not None:  # changing only the mood keeps the volume set earlier
+            sec.music_db = clamp(volume_db, LIMITS["music_db"], sec.music_db, "volume_db", w)
         track = self.edl.music_library.get(sec.music)
         if start is not None and track:
             sec.music_start = clamp(start, (0.0, max(0.0, float(track.get("duration") or 0) - 5)), track.get("best_start") or 0.0, "start", w)
