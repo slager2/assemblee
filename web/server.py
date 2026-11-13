@@ -289,8 +289,17 @@ async def no_cache_static(request: web.Request, handler):
     return resp
 
 
+@web.middleware
+async def local_host_only(request: web.Request, handler):
+    """Blocks DNS-rebinding: a page on another site cannot reach the monitor through a hostname that resolves to 127.0.0.1."""
+    host = (request.host or "").rsplit(":", 1)[0].strip("[]").lower()
+    if host not in ("127.0.0.1", "localhost", "::1"):
+        raise web.HTTPForbidden(text="local access only")
+    return await handler(request)
+
+
 def make_app(runs: Path) -> web.Application:
-    app = web.Application(middlewares=[no_cache_static])
+    app = web.Application(middlewares=[local_host_only, no_cache_static])
     app[RUNS_KEY] = runs.resolve()
     app[STOP_KEY] = asyncio.Event()
 
