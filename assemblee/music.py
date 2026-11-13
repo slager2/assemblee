@@ -670,7 +670,8 @@ def snap_edl(edl, sections=None, every=1, tolerance=0.05):
         if bed is None or not idx:
             continue
         shots = [edl.shots[i] for i in idx]
-        lim = [LIMITS["card_seconds"] if s.kind == "card" else LIMITS["picture_seconds"] for s in shots]
+        from .tools import shot_limits  # same limits as polish edits, incl. the 0.8 s floor for shots with text
+        lim = [shot_limits(s) for s in shots]
         new, rep = beat_snap([s.seconds for s in shots], track["beats"], offset, [x[0] for x in lim], [x[1] for x in lim],
                              tolerance, every)
         for s, d in zip(shots, new):

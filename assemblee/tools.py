@@ -5,6 +5,14 @@ from .edl import EDL, is_animated, EFFECTS, LOOKS, MOTIONS, MUSIC, SFX, TRANSITI
 from .media import CAPTION_STYLES, POSITIONS
 
 
+READ_FLOOR = 0.8  # a shot with text is never shorter than this (same hard floor as the build phase)
+
+
+def shot_limits(s):
+    lo, hi = LIMITS["card_seconds"] if s.kind == "card" else LIMITS["picture_seconds"]
+    return (max(lo, READ_FLOOR) if (s.kind == "card" or s.caption) else lo), hi
+
+
 def _tool(name, desc, props, required):
     return {"type": "function", "function": {"name": name, "description": desc,
             "parameters": {"type": "object", "properties": props, "required": required}}}
@@ -76,8 +84,7 @@ class PolishTools:
     def update_shot(self, shot, **f):
         s, w = self._shot(shot), []
         if "seconds" in f:
-            lim = LIMITS["card_seconds"] if s.kind == "card" else LIMITS["picture_seconds"]
-            s.seconds = clamp(f["seconds"], lim, s.seconds, "seconds", w)
+            s.seconds = clamp(f["seconds"], shot_limits(s), s.seconds, "seconds", w)
         if s.kind == "picture":
             if "motion" in f:
                 s.motion = pick(f["motion"], MOTIONS, s.motion, "motion", w)
@@ -172,7 +179,7 @@ class PolishTools:
         have = sum(self.edl.shots[i].seconds for i in idx)
         for i in idx:
             s = self.edl.shots[i]
-            lim = LIMITS["card_seconds"] if s.kind == "card" else LIMITS["picture_seconds"]
+            lim = shot_limits(s)
             s.seconds = round(min(lim[1], max(lim[0], s.seconds * want / have)), 2)
         got = round(sum(self.edl.shots[i].seconds for i in idx), 2)
         if abs(got - want) > 0.3:
