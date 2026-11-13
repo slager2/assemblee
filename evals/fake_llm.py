@@ -75,7 +75,11 @@ class FakeLLM:
                              "music": rng.choice(item["music"]["enum"]), "music_db": -10, "visual_style": "тест", "asset_group": group,
                              "transition_in": rng.choice(item["transition_in"]["enum"]),
                              "key_message": self.phrases[k % len(self.phrases)] if rng.random() < 0.7 else ""})
-            out = {"title": "Dry eval", "concept": "тест", "sections": secs}
+            for sec in secs:
+                sec.update(shots=rng.randint(3, 6), caption_style=rng.choice(item["caption_style"]["enum"]) if "caption_style" in item else "subtitle")
+            hook_ids = props.get("hook", {}).get("properties", {}).get("asset", {}).get("enum") or [""]
+            out = {"title": "Dry eval", "concept": "тест", "sections": secs, "hook": {"asset": rng.choice(hook_ids), "caption": "Стоп. Смотри.", "why": "тест"},
+                   "ending": "обрыв на пике"}
         elif "shots" in props:
             variants = props["shots"]["items"]["anyOf"]
             pic = next(v for v in variants if "asset" in v["properties"])["properties"]

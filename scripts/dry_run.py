@@ -38,7 +38,10 @@ class FakeLLM:
             out = {"title": "Dry run", "concept": "test", "sections": [
                 {"name": "intro", "goal": "зацепить", "target_seconds": 4, "music": "dark_drone", "music_db": -10, "visual_style": "glitch", "asset_group": "any", "transition_in": "glitch", "key_message": "зацепка"},
                 {"name": "middle", "goal": "показать", "target_seconds": 8, "music": "chiptune", "music_db": -10, "visual_style": "bright", "asset_group": "server-beast", "transition_in": "whip", "key_message": "Тестовая подпись"},
-                {"name": "ending", "goal": "финал", "target_seconds": 4, "music": "epic", "music_db": -8, "visual_style": "dark", "asset_group": "spider", "transition_in": "flash", "key_message": "финальная мысль"}]}
+                {"name": "ending", "goal": "финал", "target_seconds": 4, "music": "epic", "music_db": -8, "visual_style": "dark", "asset_group": "spider", "transition_in": "flash", "key_message": "финальная мысль"}],
+                   "hook": {"asset": props["hook"]["properties"]["asset"]["enum"][0], "caption": "Стоп. Смотри.", "why": "тест"}, "ending": "обрыв на пике"}
+            for k, sec in enumerate(out["sections"]):
+                sec.update(shots=3, caption_style=["glitch", "cartoon", "system"][k])
         elif "shots" in props:
             ids = props["shots"]["items"]["anyOf"][0]["properties"]["asset"]["enum"]
             out = {"shots": [{"kind": "card", "asset": "", "seconds": 2, "card_title": "Заголовок", "card_subtitle": "подзаголовок", "card_style": "glitch",
