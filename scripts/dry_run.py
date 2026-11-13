@@ -46,9 +46,11 @@ class FakeLLM:
                 {"kind": "picture", "asset": self.rng.choice(ids), "seconds": 2, "motion": self.rng.choice(["zoom_in", "punch_in", "pan_left"]),
                  "look": "cartoon_pop", "caption": "Тестовая подпись", "caption_style": self.rng.choice(["cartoon", "system", "retro2011"]),
                  "caption_position": "bottom", "effects": ["rgb_split"], "transition_out": "cut"} for _ in range(2)]}
+        elif "problems" in props:  # director looks at the contact sheet
+            out = {"critique": "однообразно", "problems": [{"shot": 2, "problem": "темно", "fix": "светлее look"}], "verdict": "нужны правки"}
         elif "actions" in props:
             text = json.dumps(messages[-1]["content"], ensure_ascii=False)
-            out = {"critique": "однообразно", "thoughts": "fix", "actions": [{"op": "add_sfx", "kind": "whoosh", "shot": 2, "at": "start"},
+            out = {"thoughts": "fix", "actions": [{"op": "add_sfx", "kind": "whoosh", "shot": 2, "at": "start"},
                                                   {"op": "update_shot", "shot": 3, "effects": [], "motion": "zoom_out"}], "done": True}
             if "читается плохо" in text:
                 out["actions"] = [{"op": "update_shot", "shot": 2, "effects": []}]

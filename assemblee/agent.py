@@ -546,11 +546,10 @@ class Agent:
 
     def director(self, rounds=2):
         """The vision model watches a contact sheet of the whole edit (one numbered frame per shot) next to the
-        storyboard, writes a critique and answers with polish actions; at most `rounds` rounds."""
+        storyboard and writes a critique with concrete problems (look); then, without the picture, it turns its own
+        critique into polish actions (act). Splitting looking from editing keeps the small model from looping on
+        one operation. At most `rounds` rounds."""
         handler = PolishTools(self.edl, self.changed, guardrails=self.guardrails)
-        schema = self.action_schema()
-        schema["properties"] = {"critique": {"type": "string", "description": "2-4 предложения: что в монтаже плохо и что хорошо"}, **schema["properties"]}
-        schema["required"] = ["critique"] + schema["required"]
         last = None
         for rnd in range(rounds):
             self.ev.emit("phase", name="director", note=f"режиссёр смотрит весь монтаж, раунд {rnd + 1}")
@@ -563,28 +562,50 @@ class Agent:
             path = self.run_dir / "frames" / f"director-r{rnd + 1}.jpg"
             path.write_bytes(sheet)
             self.ev.emit("frame", path=self.ev.rel(path), clip=None, seconds=None, verdict=None)
+            n = len(self.edl.shots)
+            look_schema = {"type": "object", "properties": {
+                "critique": {"type": "string", "description": "2-4 предложения: что в монтаже плохо и что хорошо"},
+                "problems": {"type": "array", "maxItems": 6, "items": {"type": "object", "properties": {
+                    "shot": {"type": "integer", "minimum": 1, "maximum": n}, "problem": {"type": "string"}, "fix": {"type": "string"}},
+                    "required": ["shot", "problem", "fix"], "additionalProperties": False}},
+                "verdict": {"type": "string", "enum": ["готово", "нужны правки"]}}, "required": ["critique", "problems", "verdict"]}
             text = ("Ты режиссёр этого ролика. На картинке — контактный лист монтажа: по одному кадру из каждого плана по порядку "
                     "(слева направо, сверху вниз), красная цифра = номер кадра в монтажном листе, внизу секция и картинка.\n\n"
                     f"ЗАДАЧА:\n{self.task}\n\nРАСКАДРОВКА:\n{json.dumps(self.storyboard, ensure_ascii=False)}\n\n"
                     f"МОНТАЖНЫЙ ЛИСТ:\n{json.dumps(self.edl.summary(), ensure_ascii=False)[:6000]}\n\n{self.notes_text()}"
-                    + (f"Прошлый раунд: ты написал «{last['critique']}» и сделал правки {json.dumps(last['results'], ensure_ascii=False)[:1200]}. "
-                       "Это новый лист после правок.\n\n" if last else "")
+                    + (f"Прошлый раунд: ты написал «{last['critique']}», правки: {json.dumps(last['results'], ensure_ascii=False)[:1000]}. "
+                       "Это новый лист после правок: оцени заново, не повторяй старую критику, если это уже исправлено.\n\n" if last else "")
                     + "Посмотри на ролик целиком: держит ли он задачу и раскадровку, понятна ли история, нет ли однообразия "
                     "(одни и те же картинки, цвета, движения, подписи), сильные ли начало и финал, видна ли главная мысль каждой секции, "
-                    "не мешают ли эффекты. critique — 2-4 предложения по-русски. actions — только правки, которые реально улучшат ролик "
-                    "(op = имя операции и её поля). Если ролик уже хорош — пустой список и done=true.")
+                    "не мешают ли эффекты, не слишком ли тёмные или пустые кадры. critique — 2-4 предложения по-русски. "
+                    "problems — до 6 конкретных проблем: номер кадра, что не так, как исправить. verdict — «готово», если править нечего.")
             msgs = [{"role": "system", "content": SYSTEM},
                     {"role": "user", "content": [LLM.image_part(sheet, max_side=1280), {"type": "text", "text": text}]}]
             try:
-                out = self.ask_json("director", msgs, schema, max_tokens=2500, temperature=0.4)
+                look = self.ask_json("director", msgs, look_schema, max_tokens=1200, temperature=0.3)
             except LLMError as e:
                 self.ev.emit("warning", message=str(e)[:300])
                 return
-            self.step("director_critique", {"round": rnd + 1, "shots": len(frames)}, {"critique": out.get("critique", ""), "actions": len(out.get("actions", []))})
-            results = self.apply_actions("director", rnd, out, handler)
-            last = {"critique": out.get("critique", "")[:400], "results": results}
-            if out.get("done") or not out.get("actions"):
+            problems = look.get("problems") or []
+            self.step("director_critique", {"round": rnd + 1, "shots": n},
+                      {"critique": look.get("critique", ""), "problems": problems, "verdict": look.get("verdict")})
+            if look.get("verdict") == "готово" or not problems:
                 return
+            schema = self.action_schema()
+            schema["properties"]["actions"]["maxItems"] = 8
+            listing = "\n".join(f"- кадр {x['shot']}: {x['problem']} → {x['fix']}" for x in problems)
+            act_text = (f"ЗАДАЧА:\n{self.task}\n\nМОНТАЖНЫЙ ЛИСТ:\n{json.dumps(self.edl.summary(), ensure_ascii=False)[:6000]}\n\n"
+                        f"Ты посмотрел весь ролик как режиссёр. Критика: {look.get('critique', '')}\nПроблемы:\n{listing}\n\n"
+                        "Преврати каждую проблему в правку (op = имя операции и её поля; номера кадров — из монтажного листа). "
+                        "Одна проблема — одна-две правки, без повторов одной и той же операции. Потом done=true.")
+            try:
+                out = self.ask_json("director", [{"role": "system", "content": SYSTEM}, {"role": "user", "content": act_text}],
+                                    schema, max_tokens=2000, temperature=0.3, think=self.think)
+            except LLMError as e:
+                self.ev.emit("warning", message=str(e)[:300])
+                return
+            results = self.apply_actions("director", rnd, out, handler)
+            last = {"critique": look.get("critique", "")[:400], "results": results}
 
     def review(self):
         for rnd in range(self.review_rounds):
