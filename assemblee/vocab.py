@@ -122,6 +122,12 @@ def _params(row, raw_params, amount, what, warnings):
     """Preset, then `amount` (0..1 along the main param's safe range), then explicit params; all validated."""
     out = dict(row.get("preset") or {})
     if amount is not None and row.get("main"):
+        try:
+            if 1 < float(amount) <= 100:  # models often answer in percent: 32 means 0.32, not "clamp to the maximum"
+                warnings.append(f"{what}.amount: {amount} read as percent, used {round(float(amount) / 100, 3)}")
+                amount = float(amount) / 100
+        except (TypeError, ValueError):
+            pass
         a = _num(amount, (0, 1), 0.5, f"{what}.amount", warnings)
         spec = row["params"][row["main"]]
         out[row["main"]] = round(spec["min"] + a * (spec["max"] - spec["min"]), 3)
