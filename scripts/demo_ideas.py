@@ -39,7 +39,7 @@ PICKS = {
     "countdown_top3": (["spider/03-lower-1", "spider/04-lava-2", "spider/01-mother"], ["ТОП-3 жутких мест", "3", None, "2", None, "1", None],
                        ["№1 вас удивит", "Нижние пещеры", None, "Лавовое озеро", None, "Логово Матери", None]),
     "hero_flare_reveal": (["spider/01-mother"], ["Мать", "Королева пауков"], None),
-    "pop_art_grid": (["server-beast/slime-rancher-3"], [None, "Девять — проблема"], None),
+    "pop_art_grid": (["server-beast/slime-rancher-3"], [None, "Четыре — уже проблема"], None),
     "neon_outline": (["last-online/backrooms", "last-online/crossroads"], ["СКАНИРОВАНИЕ...", None], None),
     "movie_trailer": (["server-beast/dragon-adventures-1", "server-beast/dragon-adventures-2"],
                       ["В мире, где драконы правят...", "...один игрок решил их приручить", "SERVER BEAST"], [None, None, "скоро"]),
