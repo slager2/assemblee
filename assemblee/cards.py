@@ -43,11 +43,70 @@ def _fit_text(text, path, max_size, min_size, width, tracking=0, max_lines=2, sh
     return min_size, wrap(font(path, min_size), min_size)
 
 
-def render_card(title, subtitle, style, seconds, on_call=None):
-    """Returns the path of a cached H.264 card clip. on_call(tool, params) is called for every MCP call."""
+TEXT_ANIM_VERSION = 3  # bump when the text animations change (part of the card cache key)
+SEL = "text/animators/animator/selectors/rangeSelector/"
+PROP = "text/animators/animator/properties/"
+SHAPES = {"square": 0, "ramp_up": 1, "ramp_down": 2, "triangle": 3, "round": 4, "smooth": 5}
+# text_anim -> (animator properties, their "hidden" values, selector settings).
+# square shape: the range selector's `start` sweeps 0 -> 100, so the hidden state leaves the characters one by one.
+# ramp shapes: a 0..50 % ramp slides (`offset` -50 -> 100) from before the first character to past the last one, so each
+# character goes smoothly from hidden (after the ramp) to shown (before it), several at a time.
+TEXT_ANIMS = {
+    "typewriter": (["opacity"], {"opacity": 0}, {"shape": "square", "smoothness": 0}),
+    "word_by_word": (["opacity"], {"opacity": 0}, {"shape": "square", "smoothness": 0, "basedOn": 2}),
+    "fade_letters": (["opacity"], {"opacity": 0}, {"shape": "ramp_up"}),
+    "slide_up": (["opacity", "position"], {"opacity": 0, "position": [0, 160, 0]}, {"shape": "ramp_up"}),
+    "scale_pop": (["scale", "opacity"], {"scale": [0, 0, 100], "opacity": 0}, {"shape": "ramp_up"}),
+    "blur_in": (["blur", "opacity"], {"blur": [40, 40], "opacity": 0}, {"shape": "ramp_up"}),
+    "decode": (["characterOffset"], {"characterRange": 1, "characterOffset": 12}, {"shape": "square", "smoothness": 0, "randomize": True, "basedOn": 1}),
+}
+
+
+def text_anim_keys(seconds):
+    """Reveal window: starts right away, takes about 40% of the card (0.5..1.4 s)."""
+    return 0.05, 0.05 + min(1.4, max(0.5, seconds * 0.4))
+
+
+def animate_text(call, run, layer, kind, seconds):
+    """Per-character entrance with EffectCraft text animators (After Effects-style range/wiggly selectors)."""
+    a, b = text_anim_keys(seconds)
+    if kind == "tracking_in":
+        run("layer.addTextAnimator", {"layer": layer, "properties": ["tracking", "opacity"]})
+        call("add_keyframe", {"layer": layer, "path": PROP + "tracking", "interpolation": "easyEaseOut", "keys": [{"time": a, "value": 140}, {"time": b, "value": 0}]})
+        call("add_keyframe", {"layer": layer, "path": PROP + "opacity", "keys": [{"time": a, "value": 0}, {"time": a + (b - a) * 0.6, "value": 100}]})
+        return
+    if kind == "glitch":
+        run("layer.addTextAnimator", {"layer": layer, "properties": ["position", "fillHue", "opacity"]})
+        run("layer.addTextSelector", {"layer": layer, "animator": 1, "kind": "wiggly"})
+        call("set_property", {"layer": layer, "path": PROP + "position", "value": [70, 0, 0]})
+        call("set_property", {"layer": layer, "path": PROP + "fillHue", "value": 120})
+        call("set_property", {"layer": layer, "path": PROP + "opacity", "value": -100})
+        w = "text/animators/animator/selectors/wigglySelector/"
+        call("set_property", {"layer": layer, "path": w + "wigglesPerSecond", "value": 14})
+        call("set_property", {"layer": layer, "path": w + "correlation", "value": 0})
+        call("add_keyframe", {"layer": layer, "path": SEL + "advanced/amount", "interpolation": "hold",
+                              "keys": [{"time": 0, "value": 100}, {"time": b, "value": 35}, {"time": b + 0.15, "value": 0}]})
+        return
+    props, hidden, sel = TEXT_ANIMS[kind]
+    run("layer.addTextAnimator", {"layer": layer, "properties": props})
+    for p, v in hidden.items():
+        call("set_property", {"layer": layer, "path": PROP + p, "value": v})
+    for k, v in sel.items():
+        call("set_property", {"layer": layer, "path": SEL + "advanced/" + k, "value": SHAPES.get(v, v) if k == "shape" else v})
+    if sel.get("shape") == "square":
+        call("add_keyframe", {"layer": layer, "path": SEL + "start", "interpolation": "linear", "keys": [{"time": a, "value": 0}, {"time": b, "value": 100}]})
+    else:
+        call("set_property", {"layer": layer, "path": SEL + "end", "value": 50})
+        call("add_keyframe", {"layer": layer, "path": SEL + "offset", "interpolation": "easyEaseOut", "keys": [{"time": a, "value": -50}, {"time": b, "value": 100}]})
+
+
+def render_card(title, subtitle, style, seconds, on_call=None, text_anim="none"):
+    """Returns the path of a cached H.264 card clip. on_call(tool, params) is called for every MCP call.
+    text_anim: "none" (the style's own entrance) or a per-character animation from vocab.TEXT_ANIMS."""
     style = style if style in PALETTES else "minimal"
+    text_anim = text_anim if text_anim in TEXT_ANIMS or text_anim in ("tracking_in", "glitch") else "none"
     title, subtitle = title.strip()[:40], (subtitle or "").strip()[:80]
-    out = cache_dir("cards") / f"{h(title, subtitle, style, round(seconds, 2), RENDER_VERSION)}.mp4"
+    out = cache_dir("cards") / f"{h(title, subtitle, style, round(seconds, 2), RENDER_VERSION, *([text_anim, TEXT_ANIM_VERSION] if text_anim != 'none' else []))}.mp4"
     if out.exists():
         return out
     bg, fg, accent = PALETTES[style]
@@ -107,11 +166,13 @@ def render_card(title, subtitle, style, seconds, on_call=None):
             call("add_effect", {"layer": t, "effect": "ec.vr.digitalglitch", "values": {"masterAmplitude": 200}})
             call("add_keyframe", {"layer": t, "path": "effects/#1/masterAmplitude", "keys": [
                 {"time": 0, "value": 280}, {"time": seconds * 0.35, "value": 0}, {"time": seconds * 0.85, "value": 0}, {"time": seconds, "value": 300}]})
-        if style in ("cartoon", "final", "minimal"):
+        if text_anim != "none":
+            animate_text(call, run, t, text_anim, seconds)
+        elif style in ("cartoon", "final", "minimal"):
             call("add_keyframe", {"layer": t, "path": "transform/scale", "interpolation": "easyEase",
                                   "keys": [{"time": 0, "value": [80 if style == "minimal" else 60] * 2}, {"time": 0.3, "value": [106 if style == "minimal" else 112] * 2},
                                            {"time": 0.5, "value": [100, 100]}]})
-        call("add_keyframe", {"layer": t, "path": "transform/opacity", "keys": [{"time": 0, "value": 0}, {"time": 0.2, "value": 100},
+        call("add_keyframe", {"layer": t, "path": "transform/opacity", "keys": [{"time": 0, "value": 0 if text_anim == "none" else 100}, {"time": 0.2, "value": 100},
                                                                                {"time": seconds - 0.2, "value": 100}, {"time": seconds, "value": 0 if style == "final" else 100}]})
         call("save_project", {"path": str(proj)})
     finally:
