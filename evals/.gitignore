@@ -1,3 +1,4 @@
 .cache-dry/
 fetched/
 .media-cache/
+results/*.log
