@@ -259,7 +259,9 @@ def download_music(results, dest_dir, max_tracks=6, on_event=None, timeout=60):
                     data, hdr = _get(r["audio_url"], timeout=timeout, retries=3, max_bytes=MAX_BYTES, accept="audio/*")
                     time.sleep(3.0)
             else:
-                data, hdr = _get(r["audio_url"], timeout=timeout, retries=2, max_bytes=MAX_BYTES, accept="audio/*")
+                # ccMixter hotlink protection answers 403 without a Referer from its own site
+                ref = {"Referer": r["page_url"]} if r["provider"] == "ccmixter" and r.get("page_url") else None
+                data, hdr = _get(r["audio_url"], timeout=timeout, retries=2, max_bytes=MAX_BYTES, accept="audio/*", headers=ref)
             ctype = (hdr.get("Content-Type") or "").split(";")[0].strip().lower()
             if ctype.startswith(("text/", "image/")) or ctype == "application/json":
                 raise FetchError(f"not audio: {ctype}")
