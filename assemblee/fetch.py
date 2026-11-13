@@ -45,6 +45,7 @@ DEFAULT_PROVIDERS = ("openverse", "wikimedia")
 CLEAR_LICENSES = re.compile(r"^(cc[ -]?by(-sa)?|cc0|public domain|pdm|cc[ -]?pdm)", re.I)
 
 _openverse_lock = threading.Lock()
+_wikimedia_lock = threading.Lock()  # Wikimedia media servers answer 429 to parallel bursts: one at a time
 _openverse_last = [0.0]
 
 
@@ -73,7 +74,7 @@ def _get(url, timeout=20, retries=2, max_bytes=None, accept="application/json"):
             if e.code == 429 or e.code >= 500:
                 wait = e.headers.get("Retry-After") if e.headers else None
                 try:
-                    wait = min(float(wait), 30.0)
+                    wait = min(float(wait), 10.0)
                 except (TypeError, ValueError):
                     wait = 2.0 * (attempt + 1)
                 if attempt < retries:
@@ -119,6 +120,17 @@ def _result(**kw):
 
 # ---------------------------------------------------------------- providers
 
+def _commons_thumb(url, width, mime):
+    """Commons originals are often 5-20 MB and upload.wikimedia.org throttles scripted clients hard (HTTP 429
+    after a handful of files), while thumb.wikimedia.org serves the standard thumbnail buckets fine.
+    Other bucket widths answer HTTP 400; a bucket wider than the file is served at the file's own size."""
+    m = re.match(r"https://upload\.wikimedia\.org/wikipedia/commons/(?:thumb/)?(\w/\w\w)/([^/?]+)", url)
+    if not m or mime == "image/webp":
+        return url
+    bucket = 1920 if (width or 0) > 1280 else 1280
+    return f"https://thumb.wikimedia.org/wikipedia/commons/thumb/{m[1]}/{m[2]}/{bucket}px-{m[2]}"
+
+
 def _openverse(query, n, orientation=None, license_type="commercial,modification", size="large"):
     """Anonymous Openverse: at most 20 per page, 20 requests/min, 200/day — spaced out by >= 3.1 s."""
     params = {"q": query, "page_size": min(20, max(1, n)), "mature": "false"}
@@ -147,9 +159,7 @@ def _openverse(query, n, orientation=None, license_type="commercial,modification
             name = f"CC {lic.upper()} {ver}".strip() if lic else ""
         url = it.get("url") or ""
         # Commons originals are often 5-20 MB; fetch a standard-bucket thumbnail instead
-        m = re.match(r"https://upload\.wikimedia\.org/wikipedia/commons/(\w/\w\w)/([^/?]+)$", url)
-        if m and (it.get("width") or 0) > MAX_SIDE and mime != "image/webp":
-            url = f"https://upload.wikimedia.org/wikipedia/commons/thumb/{m[1]}/{m[2]}/{MAX_SIDE}px-{m[2]}"
+        url = _commons_thumb(url, it.get("width") or 0, mime)
         out.append(_result(provider="openverse", id=it.get("id"), title=it.get("title") or "",
                            page_url=it.get("foreign_landing_url"), image_url=url,
                            width=it.get("width"), height=it.get("height"), license=name,
@@ -179,8 +189,8 @@ def _wikimedia(query, n, orientation=None):
         needs = md.get("AttributionRequired", "true") != "false"
         attribution = (f"\"{title}\" by {author or 'unknown author'}, {lic or 'see source'}, via Wikimedia Commons"
                        if needs else f"\"{title}\" ({lic}), via Wikimedia Commons")
-        url = ii.get("thumburl") or ii.get("url") or ""
-        url = re.sub(r"\?utm_[^#]*$", "", url)
+        url = re.sub(r"\?utm_[^#]*$", "", ii.get("thumburl") or ii.get("url") or "")
+        url = _commons_thumb(url, w, ii.get("mime"))  # small files: thumburl is the throttled original
         out.append(_result(provider="wikimedia", id=str(p.get("pageid")), title=title,
                            page_url=ii.get("descriptionurl"), image_url=url, width=w, height=hgt,
                            license=lic, license_url=md.get("LicenseUrl") or None, author=author,
@@ -322,7 +332,12 @@ def download(results, dest_dir, max_images=30, group="web", on_event=None, worke
         cid, t0 = uuid.uuid4().hex[:8], time.time()
         emit("tool_call", {"id": cid, "name": "download_image", "args": {"url": r["image_url"], "title": r["title"][:80]}})
         try:
-            data, hdr = _get(r["image_url"], timeout=timeout, retries=2, max_bytes=MAX_BYTES, accept="image/*")
+            if "wikimedia.org/" in r["image_url"]:
+                with _wikimedia_lock:
+                    data, hdr = _get(r["image_url"], timeout=timeout, retries=1, max_bytes=MAX_BYTES, accept="image/*")
+                    time.sleep(0.3)
+            else:
+                data, hdr = _get(r["image_url"], timeout=timeout, retries=2, max_bytes=MAX_BYTES, accept="image/*")
             ctype = (hdr.get("Content-Type") or "").split(";")[0].strip().lower()
             if ctype and ctype.startswith("image/") and ctype not in MIMES:
                 raise FetchError(f"mime {ctype}")
