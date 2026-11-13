@@ -139,6 +139,7 @@ class Agent:
         self.edl = EDL(cat)
         self._thumbs = {}
         self.assets_text = assets_mod.compact_list(cat)
+        self.groups = sorted({k.split("/")[0] for k in cat if "/" in k})
         self.step("catalog", {"dir": str(self.assets_dir)}, {"assets": len(cat), "briefs": [b.name for b in self.briefs]})
 
     def plan(self):
@@ -147,15 +148,19 @@ class Agent:
             "title": {"type": "string"}, "concept": {"type": "string"},
             "sections": {"type": "array", "minItems": 3, "maxItems": 8, "items": {"type": "object", "properties": {
                 "name": {"type": "string"}, "goal": {"type": "string"}, "target_seconds": {"type": "number"},
-                "music": {"type": "string", "enum": list(MUSIC)}, "music_db": {"type": "number"}, "visual_style": {"type": "string"}},
-                "required": ["name", "goal", "target_seconds", "music", "visual_style"]}}},
+                "music": {"type": "string", "enum": list(MUSIC)}, "music_db": {"type": "number"}, "visual_style": {"type": "string"},
+                "asset_group": {"type": "string", "enum": self.groups + ["any"]},
+                "transition_in": {"type": "string", "enum": TRANSITIONS}},
+                "required": ["name", "goal", "target_seconds", "music", "visual_style", "asset_group", "transition_in"]}}},
             "required": ["title", "concept", "sections"]}
         msgs = [{"role": "system", "content": SYSTEM},
                 {"role": "user", "content": f"ЗАДАЧА:\n{self.task}\n\nДлительность ролика: около {int(self.seconds)} секунд.\n\nМАТЕРИАЛЫ:\n{self.briefs_text}\n\n"
                                             f"КАРТИНКИ (id | что | настроение):\n{self.assets_text}\n\n"
                                             "Сначала придумай раскадровку: 3-8 секций по порядку просмотра (интро и финал тоже секции). "
-                                            "Для каждой: короткое имя (латиницей, без пробелов), цель секции, сколько секунд, музыка, визуальный стиль. Музыка: "
-                                            + ", ".join(MUSIC) + "."}]
+                                            "Для каждой: короткое имя (латиницей, без пробелов), цель секции, сколько секунд, музыка, визуальный стиль, "
+                                            "asset_group — из какой папки картинок брать кадры (any — из любой, для интро и финала), "
+                                            "transition_in — переход при входе в секцию (не cut: разные секции должны отличаться). Музыка: "
+                                            + ", ".join(MUSIC) + ". Все тексты (title, concept, goal, visual_style) пиши по-русски."}]
         sb = self.ask_json("plan", msgs, schema, max_tokens=2500, temperature=0.7)
         total = sum(max(2.0, float(s.get("target_seconds", 8))) for s in sb["sections"]) or 1
         scale = self.seconds / total  # arithmetic belongs to the harness
@@ -168,21 +173,24 @@ class Agent:
             self.edl.sections.append(Section(name=name, goal=s["goal"][:300], target_seconds=round(max(2.0, float(s["target_seconds"])) * scale, 1),
                                              music=s["music"] if s["music"] in MUSIC else "none", music_db=float(s.get("music_db", -10) or -10)))
             self.edl.sections[-1].visual_style = s.get("visual_style", "")[:200]
+            self.edl.sections[-1].asset_group = s.get("asset_group", "any") if s.get("asset_group") in self.groups else "any"
+            self.edl.sections[-1].transition_in = s.get("transition_in", "cross_dissolve") if s.get("transition_in") in TRANSITIONS else "cross_dissolve"
         self.storyboard = {"title": sb["title"], "concept": sb["concept"],
                            "sections": [{"name": s.name, "goal": s.goal, "target_seconds": s.target_seconds, "music": s.music,
-                                         "visual_style": getattr(s, "visual_style", "")} for s in self.edl.sections]}
+                                         "visual_style": getattr(s, "visual_style", ""), "asset_group": getattr(s, "asset_group", "any"),
+                                         "transition_in": getattr(s, "transition_in", "cut")} for s in self.edl.sections]}
         (self.run_dir / "storyboard.json").write_text(json.dumps(self.storyboard, ensure_ascii=False, indent=1))
         self.step("storyboard", {"seconds": self.seconds}, self.storyboard)
         self.emit_timeline()
 
-    def shot_schema(self):
-        ids = list(self.edl.catalog)
+    def shot_schema(self, group="any"):
+        ids = [k for k in self.edl.catalog if group == "any" or k.startswith(group + "/")] or list(self.edl.catalog)
         return {"type": "object", "properties": {"shots": {"type": "array", "minItems": 2, "maxItems": 8, "items": {"type": "object", "properties": {
             "kind": {"type": "string", "enum": ["picture", "card"]},
             "asset": {"type": "string", "enum": ids + [""]},
             "seconds": {"type": "number"},
             "motion": {"type": "string", "enum": MOTIONS}, "look": {"type": "string", "enum": list(LOOKS)},
-            "caption": {"type": "string"}, "caption_style": {"type": "string", "enum": CAPTION_STYLES},
+            "caption": {"type": "string", "description": "по-русски, до 60 символов"}, "caption_style": {"type": "string", "enum": CAPTION_STYLES},
             "caption_position": {"type": "string", "enum": POSITIONS},
             "effects": {"type": "array", "maxItems": 2, "items": {"type": "string", "enum": list(EFFECTS)}},
             "card_title": {"type": "string"}, "card_subtitle": {"type": "string"}, "card_style": {"type": "string", "enum": CARD_STYLES},
@@ -199,16 +207,18 @@ class Agent:
                                             f"Визуальный стиль: {getattr(sec, 'visual_style', '')}. Длительность секции около {sec.target_seconds} с.\n"
                                             "Кадр kind=picture: asset (id из списка), seconds 0.8-6, motion, look, по желанию caption (до 60 символов) со стилем и позицией, effects (0-2).\n"
                                             "Кадр kind=card: полноэкранная карточка, asset=\"\", card_title (до 28 символов), card_subtitle, card_style, seconds 1.5-3.\n"
-                                            "transition_out — переход в следующий кадр (cut — склейка). Подбирай картинки по смыслу описаний."}]
-        out = self.ask_json(f"build:{sec.name}", msgs, schema, max_tokens=2500, temperature=0.6)
+                                            "transition_out — переход в следующий кадр (cut — склейка). Подбирай картинки по смыслу описаний, не повторяй одну картинку. "
+                                            + ("Это интро или финал: бери по одной картинке из разных групп. " if getattr(sec, "asset_group", "any") == "any" else
+                                               f"Бери картинки только из группы {sec.asset_group}. ")
+                                            + "Все подписи и заголовки — только по-русски, без эмодзи."}]
+        out = self.ask_json(f"build:{sec.name}", msgs, self.shot_schema(getattr(sec, "asset_group", "any")), max_tokens=2500, temperature=0.6)
         return k, out
 
     def build(self):
         self.ev.emit("phase", name="build", note=f"собираю {len(self.edl.sections)} секций, параллельно в {self.slots} слотах")
-        schema = self.shot_schema()
         results = {}
         with ThreadPoolExecutor(max_workers=self.slots) as pool:
-            futs = [pool.submit(self._build_section, k, sec, schema) for k, sec in enumerate(self.edl.sections)]
+            futs = [pool.submit(self._build_section, k, sec, None) for k, sec in enumerate(self.edl.sections)]
             for f in futs:
                 try:
                     k, out = f.result()
@@ -230,21 +240,35 @@ class Agent:
                 warnings.append("section came back empty; added a title card")
                 s = self.edl.make_shot({"card_title": sec.goal[:28] or sec.name, "card_style": "minimal", "seconds": 2}, sec.name, warnings)
                 shots.append(s)
-            # reading time floor for captions and cards (arithmetic in the harness)
-            for s in shots:
-                text = (s.caption.text if s.caption else "") + (" " + s.title + " " + s.subtitle if s.kind == "card" else "")
-                need = round(min(6.0, max(1.2, len(text.strip()) / 14)), 1) if text.strip() else 0
-                if need > s.seconds:
-                    warnings.append(f"{s.label()}: {s.seconds}s too short to read, set {need}s")
-                    s.seconds = need
-            # fit the section to its target length
+            # 1) fit the section to its target length
             total = sum(s.seconds for s in shots)
-            if total and abs(total - sec.target_seconds) / sec.target_seconds > 0.25:
+            if total and abs(total - sec.target_seconds) / sec.target_seconds > 0.2:
                 f = sec.target_seconds / total
                 for s in shots:
                     lim = LIMITS["card_seconds"] if s.kind == "card" else LIMITS["picture_seconds"]
                     s.seconds = round(min(lim[1], max(lim[0], s.seconds * f)), 2)
                 warnings.append(f"section {sec.name}: {round(total, 1)}s scaled toward target {sec.target_seconds}s")
+            # 2) reading time floor for captions and cards wins over the target
+            for s in shots:
+                text = (s.caption.text if s.caption else "") + (" " + s.title + " " + s.subtitle if s.kind == "card" else "")
+                need = round(min(6.0, max(1.2, len(text.strip()) / 14)), 1) if text.strip() else 0
+                if need > s.seconds:
+                    s.seconds = need
+            # 3) still far too long: drop shots from the end (keep at least 2)
+            while len(shots) > 2 and sum(s.seconds for s in shots) > sec.target_seconds * 1.4:
+                gone = shots.pop()
+                warnings.append(f"dropped {gone.label()} to keep the section near {sec.target_seconds}s")
+            # 4) repeated pictures inside the section
+            seen = set()
+            for s in list(shots):
+                if s.kind == "picture" and s.asset in seen and len(shots) > 2:
+                    shots.remove(s)
+                    warnings.append(f"removed repeated picture {s.asset}")
+                seen.add(s.asset)
+            # 5) section entrance transition
+            if k and self.edl.shots and self.edl.shots[-1].transition_out == "cut":
+                self.edl.shots[-1].transition_out = getattr(sec, "transition_in", "cross_dissolve")
+                self.edl.shots[-1].transition_seconds = 0.6
             self.edl.shots.extend(shots)
             self.step("build_section", {"section": sec.name, "target_seconds": sec.target_seconds},
                       {"shots": len(shots), "seconds": round(sum(s.seconds for s in shots), 1), "warnings": warnings})
@@ -297,7 +321,7 @@ class Agent:
         handler = PolishTools(self.edl, self.changed)
         intro = (f"ЗАДАЧА:\n{self.task}\n\nМонтаж собран. Монтажный лист:\n{json.dumps(self.edl.summary(), ensure_ascii=False)}\n\n"
                  "Доведи его: добавь 3-6 звуковых эффектов на сильные моменты (add_sfx), поправь эффекты и движения, чтобы было разнообразно, "
-                 "проверь, что подписи короткие и по делу, что нет повторов, что финал сильный. Верни список действий (op = имя операции и её поля). Делай только нужные правки; когда всё готово — done=true.")
+                 "проверь, что подписи короткие, по-русски и по делу, что нет повторов, что финал сильный. Верни список действий (op = имя операции и её поля). Делай только нужные правки; когда всё готово — done=true.")
         self.action_rounds("polish", intro, handler, max(1, self.max_polish_turns // 3))
 
     def review(self):
