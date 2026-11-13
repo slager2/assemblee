@@ -702,13 +702,18 @@ class Agent:
                 self.emit_timeline()
             finally:
                 compiled.close()
-            schema = {"type": "object", "properties": {"main_text": {"type": "string"}, "seen": {"type": "string"}}, "required": ["main_text", "seen"]}
+            schema = {"type": "object", "properties": {"main_text": {"type": "string", "maxLength": 160}, "seen": {"type": "string", "maxLength": 120}},
+                      "required": ["main_text", "seen"]}
             q = ("Кадр вертикального ролика. main_text: перепиши дословно самый крупный наложенный текст (подпись или заголовок), "
                  "если его нельзя разобрать — пустая строка. seen: что на картинке, до 10 слов, по-русски.")
 
             def judge(item):
                 i, p = item
-                v = self.llm.vision(p.read_bytes(), q, schema)
+                try:
+                    v = self.llm.vision(p.read_bytes(), q, schema)
+                except Exception as e:  # one failed vision call must not cost the whole video
+                    self.ev.emit("warning", message=f"проверка кадра {i + 1} не удалась: {str(e)[:160]}")
+                    return i, {"text_readable": True, "seen": "", "error": str(e)[:160]}
                 expected = self.expected_text(self.edl.shots[i])
                 score = text_match(v.get("main_text", ""), expected)
                 verdict = {"text_readable": score >= 0.6, "seen": v.get("seen", ""), "read": v.get("main_text", "")[:120], "match": round(score, 2)}
