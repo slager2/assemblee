@@ -407,9 +407,9 @@ function renderTimeline() {
   const scroll = h("div", { class: "tl-scroll" });
   tlBox.replaceChildren(heads, scroll);
 
-  const avail = Math.max(200, scroll.clientWidth - 16);
+  const avail = Math.max(200, scroll.clientWidth - 40);
   const pps = (avail / total) * zoom;
-  const width = Math.ceil(total * pps) + 16;
+  const width = Math.ceil(total * pps) + 40;
   const X = (t) => 8 + t * pps;
 
   // ruler step: aim for ~90px between labels
