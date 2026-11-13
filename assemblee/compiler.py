@@ -49,6 +49,16 @@ def picture_media(entry):
 
 
 def compile_edl(edl: EDL, on_call=None, on_progress=None) -> Compiled:
+    """Builds a fresh FilmCraft session; if anything fails mid-compile the headless engine is closed, not leaked."""
+    fc = MCP([FILMCRAFT_CLI, "mcp"], timeout=300)
+    try:
+        return _compile_into(fc, edl, on_call, on_progress)
+    except BaseException:
+        fc.close()
+        raise
+
+
+def _compile_into(fc, edl: EDL, on_call=None, on_progress=None) -> Compiled:
     t0 = time.time()
     calls = {"filmcraft": 0, "effectcraft": 0}
 
@@ -56,7 +66,6 @@ def compile_edl(edl: EDL, on_call=None, on_progress=None) -> Compiled:
         calls[engine] += 1
         on_call and on_call(engine, cid, params)
 
-    fc = MCP([FILMCRAFT_CLI, "mcp"], timeout=300)
     items = {}
 
     def run(cid, params):
