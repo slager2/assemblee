@@ -127,7 +127,11 @@ def main():
                 rec["tail"] = tail[-600:]
             with open(out, "a") as f:
                 f.write(json.dumps(rec, ensure_ascii=False) + "\n")
-            print(f"  -> {'ok' if code == 0 else 'FAILED (' + str(code) + ')'} {rec['wall_seconds']}s {run_dir}", flush=True)
+            summ = Path(run_dir) / "summary.json" if run_dir else None
+            ok = code == 0 and summ is not None and summ.exists() and json.loads(summ.read_text()).get("ok")
+            rec["ok"] = bool(ok)
+            reason = "" if ok else (json.loads(summ.read_text()).get("reason", "")[:120] if summ and summ.exists() else f"exit {code}")
+            print(f"  -> {'ok' if ok else 'FAILED: ' + reason} {rec['wall_seconds']}s {run_dir}", flush=True)
     print("results:", out)
     print("report:  python3 scripts/eval_report.py", out)
 
