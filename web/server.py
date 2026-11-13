@@ -28,7 +28,7 @@ from pathlib import Path
 from aiohttp import web
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
-RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,200}$")
+RUN_ID_RE = re.compile(r"^\w[\w.-]{0,200}$")  # \w: run ids may contain Cyrillic (slug of the task)
 POLL_SECONDS = 0.25
 KEEPALIVE_SECONDS = 15.0
 RUNS_KEY = web.AppKey("runs_dir", Path)
