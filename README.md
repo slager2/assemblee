@@ -72,6 +72,32 @@ fetch.gather(task, llm, "/tmp/x", per_query=6, max_total=30, on_event=lambda t, 
   `thumb.wikimedia.org`, по одному. Локальный SearXNG (`providers=(..., "searxng")`, 127.0.0.1:8081)
   подключается только явно и только если доступен; его результаты с лицензией `unknown`.
 
+## Музыка из интернета (`assemblee/music.py`)
+
+Кроме четырёх синтезированных подложек можно взять настоящие треки CC/PD: `gather_music(task, llm, dest, moods)`
+просит модель (JSON-схема) дать 3–6 английских запросов на каждое настроение (без модели — запросы по словам
+имени настроения), ищет в **Openverse audio** (`category=music`, `license_type=commercial,modification`,
+в основном Jamendo), **ccMixter** (публичный `api/query`, NC/sampling+ отбрасываются, есть свой bpm) и
+**Wikimedia Commons** (`filetype:audio`, производный mp3), берёт инструментальные 30–300 с, скачивает
+(≤ 40 МБ), переводит в wav 48 кГц стерео с `loudnorm I=-16` → `<dest>/music/<slug>.wav`, пишет запись
+`kind: "music"` в тот же `<dest>/credits.json`.
+
+Анализ без LLM и numpy, только ffmpeg: энергия трёх полос 100 кадров/с → onset-огибающая → автокорреляция
+(темп, приор около 120 bpm) → DP-трекер долей (Ellis 2007) → самое громкое 10-секундное окно (`best_start`,
+«дроп», на доле). На синтезированных: chiptune 120.0 bpm, epic 139.7 bpm.
+
+```python
+from assemblee import music
+lib = music.gather_music(task, llm, "/tmp/x", {"warm": "семейные воспоминания", "dark": "ретро-хоррор"})
+edl.music_library = {t["id"]: t for t in lib}       # или music.load_library("/tmp/x")
+sec.music = lib[0]["id"]; sec.music_start = None     # None = с дропа; число = секунда трека на первой склейке
+music.snap_edl(edl)                                   # склейки на доли, длительность секции ±5 %
+music.beat_snap(durations, beats, offset)             # то же как чистая функция
+```
+
+Компилятор ставит трек так, что `music_start` приходится ровно на первую склейку секции (`sourceIn`),
+кроссфейды между подложками прежние. Проверка: `scripts/smoke_music.py [dest] [out.mp4] [--llm]`.
+
 ## Зависимости
 
 Python 3.12 + Pillow + aiohttp, ffmpeg, бинарники FilmCraft 0.20.1 и EffectCraft 0.24.1 (пути в
