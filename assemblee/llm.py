@@ -45,9 +45,18 @@ class LLM:
         except Exception:
             return "unknown"
 
-    def chat(self, messages, tools=None, max_tokens=2048, temperature=0.3, response_format=None, tool_choice=None):
-        body = {"model": "m", "messages": messages, "max_tokens": max_tokens, "temperature": temperature,
-                "top_p": 0.9, "cache_prompt": True}
+    def chat(self, messages, tools=None, max_tokens=2048, temperature=0.3, response_format=None, tool_choice=None,
+             think=False, think_budget=1024):
+        """think=True: Qwen3.5 thinks first (chat_template_kwargs.enable_thinking, per request), at most think_budget
+        tokens (server-side reasoning budget, then it is forced to close the think block). The reasoning is
+        returned separately (reasoning_format=deepseek -> message.reasoning_content), never inside content;
+        max_tokens is for the answer, the budget is added on top."""
+        body = {"model": "m", "messages": messages, "max_tokens": max_tokens + (think_budget if think else 0), "temperature": temperature,
+                "top_p": 0.9, "cache_prompt": True, "reasoning_format": "deepseek",
+                "chat_template_kwargs": {"enable_thinking": bool(think)}}
+        if think:
+            body["reasoning_budget_tokens"] = int(think_budget)
+            body["reasoning_budget_message"] = " Хватит думать, пишу ответ."
         if tools:
             body["tools"] = tools
             if tool_choice:
@@ -64,25 +73,36 @@ class LLM:
         self.totals["completion_tokens"] += usage.get("completion_tokens", 0)
         self.totals["seconds"] += dt
         msg = r["choices"][0]["message"]
-        return {"message": msg, "finish_reason": r["choices"][0].get("finish_reason"), "usage": usage, "seconds": round(dt, 2),
+        content = msg.get("content") or ""
+        if "</think>" in content:  # a template/parser that left the thoughts in content
+            head, _, content = content.partition("</think>")
+            msg["reasoning_content"] = (msg.get("reasoning_content") or "") + head.replace("<think>", "").strip()
+            msg["content"] = content.strip()
+        reasoning = msg.get("reasoning_content") or ""
+        self.totals.setdefault("reasoning_chars", 0)
+        self.totals["reasoning_chars"] += len(reasoning)
+        return {"message": msg, "reasoning": reasoning, "finish_reason": r["choices"][0].get("finish_reason"), "usage": usage, "seconds": round(dt, 2),
                 "tokens_per_second": round(timings.get("predicted_per_second") or (usage.get("completion_tokens", 0) / dt if dt else 0), 1),
                 "prompt_per_second": round(timings.get("prompt_per_second", 0) or 0, 1)}
 
-    def json(self, messages, schema, max_tokens=2048, temperature=0.3):
-        """Constrained JSON answer (grammar from the schema)."""
-        r = self.chat(messages, max_tokens=max_tokens, temperature=temperature,
+    def json(self, messages, schema, max_tokens=2048, temperature=0.3, think=False, think_budget=1024):
+        """Constrained JSON answer (grammar from the schema; with think=True the grammar applies after the thoughts)."""
+        r = self.chat(messages, max_tokens=max_tokens, temperature=temperature, think=think, think_budget=think_budget,
                       response_format={"type": "json_schema", "json_schema": {"name": "out", "schema": schema}})
         try:
             return json.loads(r["message"].get("content") or ""), r
         except json.JSONDecodeError as e:
             raise LLMError(f"invalid JSON from model: {e}") from None
 
-    def vision(self, png_bytes, question, schema, max_side=960):
+    @staticmethod
+    def image_part(png_bytes, max_side=960):
         im = Image.open(io.BytesIO(png_bytes)).convert("RGB")
         im.thumbnail((max_side, max_side))
         buf = io.BytesIO()
         im.save(buf, "JPEG", quality=88)
-        url = "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode()
-        msgs = [{"role": "user", "content": [{"type": "image_url", "image_url": {"url": url}}, {"type": "text", "text": question}]}]
+        return {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode()}}
+
+    def vision(self, png_bytes, question, schema, max_side=960):
+        msgs = [{"role": "user", "content": [self.image_part(png_bytes, max_side), {"type": "text", "text": question}]}]
         out, _ = self.json(msgs, schema, max_tokens=300, temperature=0)
         return out
