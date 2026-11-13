@@ -549,6 +549,23 @@ class Agent:
                       {"shots": len(shots), "seconds": round(sum(s.seconds for s in shots), 1), "warnings": warnings})
             self.refresh_thumbs()
             self.emit_timeline()
+        self.limit_heavy_effects()
+
+    def limit_heavy_effects(self):
+        """Render-cost budget, not taste: heavy effects (glint, rays, glow...) on at most MAX_HEAVY_SHOTS shots."""
+        heavy_shots, dropped = 0, []
+        for i, s in enumerate(self.edl.shots, 1):
+            ids = [e["id"] if isinstance(e, dict) else e for e in s.effects]
+            if not any(x in vocab.HEAVY_EFFECTS for x in ids):
+                continue
+            heavy_shots += 1
+            if heavy_shots > vocab.MAX_HEAVY_SHOTS:
+                s.effects = [e for e in s.effects if (e["id"] if isinstance(e, dict) else e) not in vocab.HEAVY_EFFECTS]
+                dropped.append(i)
+        if dropped:
+            self.step("render_budget", {"max_heavy_shots": vocab.MAX_HEAVY_SHOTS},
+                      {"warnings": [f"тяжёлые эффекты сняты с кадров {dropped}: экспорт был бы в разы дольше"]})
+            self.changed()
 
     @staticmethod
     def reading_seconds(shot):
@@ -670,6 +687,7 @@ class Agent:
 
     def polish(self):
         self._polish()
+        self.limit_heavy_effects()
         self.snap_to_beats("polish")
 
     def _polish(self):
