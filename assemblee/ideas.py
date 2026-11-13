@@ -189,7 +189,7 @@ RECIPES = [
           "effects": [{"id": "black_white"}, {"id": "noise", "amount": 0.4}], "grade": {"faded_film": 40, "contrast": -20},
           "caption": "ДО", "caption_style": "system", "caption_position": "top", "transition_out": "linear_wipe", "transition_params": {"angle": 90, "feather": 20}, "transition_seconds": 0.6},
          {"role": "after", "kind": "picture", "seconds": 2.6, "asset_hint": "тот же кадр или «стало»", "same_as": 0, "camera": _cam(110, 135, "punch"),
-          "grade": {"saturation": 145, "vibrance": 30, "contrast": 20}, "effects": [{"id": "glint", "amount": 0.5}],
+          "grade": {"saturation": 145, "vibrance": 30, "contrast": 20}, "effects": [{"id": "glint", "amount": 0.3}],
           "caption": "ПОСЛЕ", "caption_style": "cartoon", "caption_position": "top", "transition_out": "cut", "sfx": "notify"}],
      "caption_pattern": "«ДО» / «ПОСЛЕ» крупно сверху; одна строка снизу — что изменилось",
      "music_hint": "warm_pad", "why_it_works": "контраст до/после читается без звука; держать «до» 1-2 с, «после» 2-4 с, снимать с одной точки",
