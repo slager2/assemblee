@@ -39,7 +39,7 @@ class FakeLLM:
                 {"name": "middle", "goal": "показать", "target_seconds": 8, "music": "chiptune", "music_db": -10, "visual_style": "bright", "asset_group": "server-beast", "transition_in": "whip"},
                 {"name": "ending", "goal": "финал", "target_seconds": 4, "music": "epic", "music_db": -8, "visual_style": "dark", "asset_group": "spider", "transition_in": "flash"}]}
         elif "shots" in props:
-            ids = [x for x in props["shots"]["items"]["properties"]["asset"]["enum"] if x]
+            ids = props["shots"]["items"]["anyOf"][0]["properties"]["asset"]["enum"]
             out = {"shots": [{"kind": "card", "asset": "", "seconds": 2, "card_title": "Заголовок", "card_subtitle": "подзаголовок", "card_style": "glitch",
                               "transition_out": "glitch"}] + [
                 {"kind": "picture", "asset": self.rng.choice(ids), "seconds": 2, "motion": self.rng.choice(["zoom_in", "punch_in", "pan_left"]),
