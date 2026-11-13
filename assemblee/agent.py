@@ -95,6 +95,24 @@ def text_match(read, expected):
     return max(hit / len(words), difflib.SequenceMatcher(None, r, e).ratio())
 
 
+MUSIC_DESC = {"dark_drone": "низкий тревожный гул, без ритма (хоррор, тайна)", "chiptune": "весёлый 8-бит, 120 BPM (игры, юмор, быстро)",
+              "epic": "бочка и синт, 140 BPM (масштаб, кульминация)", "warm_pad": "мягкие аккорды без ударных (тепло, семья, воспоминания)",
+              "none": "тишина"}
+THINK_PLAN = ("Если думаешь — думай по-русски и коротко, не пересказывай задачу. По порядку: 1) крючок первых 2 секунд: какая картинка и какие 3-5 слов; "
+              "2) из каких частей ролик и чем каждая отличается (цвет, стиль подписей, музыка, темп); 3) финал: пик, обрыв или петля. Потом ответ.")
+THINK_BUILD = ("Если думаешь — думай по-русски и коротко, не пересказывай задачу: для каждого кадра — какая картинка и почему она подходит "
+               "к подписи по смыслу, длина кадра, и чем соседние кадры отличаются. Потом ответ.")
+
+
+def cut_words(text, limit):
+    """Truncate at a word boundary, never mid-word."""
+    t = re.sub(r"\s+", " ", str(text or "")).strip()
+    if len(t) <= limit:
+        return t
+    cut = t[:limit + 1].rsplit(" ", 1)[0]
+    return (cut if len(cut) >= limit // 2 else t[:limit]).rstrip(" ,.;:-—")
+
+
 class Agent:
     def __init__(self, task: str, assets_dir: Path, briefs: list[Path], run_dir: Path, seconds: float = 60, slots: int = 2,
                  llm: LLM | None = None, max_polish_turns=10, review_rounds=2, output_name="video.mp4", mode="strict", fetch: str | None = None,
@@ -316,28 +334,40 @@ class Agent:
     def plan(self):
         self.ev.emit("phase", name="plan", note="раскадровка: секции, цели, музыка")
         schema = {"type": "object", "properties": {
-            "title": {"type": "string"}, "concept": {"type": "string"},
+            "title": {"type": "string", "maxLength": 80}, "concept": {"type": "string", "maxLength": 400},
+            "hook": {"type": "object", "additionalProperties": False, "properties": {
+                "asset": {"type": "string", "enum": list(self.edl.catalog)}, "caption": {"type": "string", "maxLength": 40},
+                "why": {"type": "string", "maxLength": 160}}, "required": ["asset", "caption", "why"]},
+            "ending": {"type": "string", "maxLength": 200, "description": "чем заканчивается ролик: пик, обрыв или петля"},
             "sections": {"type": "array", "minItems": 3, "maxItems": 8, "items": {"type": "object", "properties": {
-                "name": {"type": "string"}, "goal": {"type": "string"}, "target_seconds": {"type": "number"},
+                "name": {"type": "string", "maxLength": 24}, "goal": {"type": "string", "maxLength": 240}, "target_seconds": {"type": "number"},
+                "shots": {"type": "integer", "minimum": 1, "maximum": 10}, "caption_style": {"type": "string", "enum": CAPTION_STYLES},
                 "music": {"type": "string", "enum": self.edl.music_choices()}, "music_db": {"type": "number", "minimum": -24, "maximum": 3}, "visual_style": {"type": "string"},
                 "asset_group": {"type": "string", "enum": self.groups + ["any"]},
                 "transition_in": {"type": "string", "enum": TRANSITIONS},
-                "key_message": {"type": "string", "description": "главная мысль секции, 2-6 слов по-русски; обязательно появится в кадре"}},
-                "required": ["name", "goal", "target_seconds", "music", "visual_style", "asset_group", "transition_in", "key_message"]}}},
-            "required": ["title", "concept", "sections"]}
+                "key_message": {"type": "string", "maxLength": 40, "description": "главная мысль секции, 2-6 слов по-русски; обязательно появится в кадре"}},
+                "required": ["name", "goal", "target_seconds", "shots", "caption_style", "music", "visual_style", "asset_group", "transition_in", "key_message"]}}},
+            "required": ["title", "concept", "hook", "ending", "sections"]}
         msgs = [{"role": "system", "content": SYSTEM},
                 {"role": "user", "content": f"ЗАДАЧА:\n{self.task}\n\nДлительность ролика: около {int(self.seconds)} секунд.\n\nМАТЕРИАЛЫ:\n{self.briefs_text}\n\n"
                                             f"КАРТИНКИ (id | что | настроение):\n{self.assets_text}\n\n"
                                             "Сначала придумай раскадровку: 3-8 секций по порядку просмотра (интро и финал тоже секции). "
                                             "Для каждой: короткое имя (латиницей, без пробелов), key_message — главная мысль секции в 2-6 словах, цель секции, сколько секунд, музыка, визуальный стиль, "
                                             "asset_group — из какой папки картинок брать кадры (any — из любой, для интро и финала), "
-                                            "transition_in — переход при входе в секцию (не cut: разные секции должны отличаться). Музыка: "
-                                            + ", ".join(MUSIC)
+                                            "transition_in — переход при входе в секцию (не cut: разные секции должны отличаться), "
+                                            "shots — сколько кадров (обычно кадр 1-2.5 с: секция 10 с ≈ 5-7 кадров; «быстро» — до 1.2 с; одна пауза-удар на ролик допустима), "
+                                            "caption_style — свой стиль подписей секции, чтобы части отличались характером.\n"
+                                            "hook — крючок первых 2 секунд: картинка и 3-5 слов, которые остановят листание (не заставка с названием). "
+                                            "ending — финал: последние 2-3 секунды — пик, обрыв или петля к началу; финальная карточка не дольше 2 с, один призыв, без повтора подписью и карточкой.\n"
+                                            "Музыка: " + "; ".join(f"{k} — {v}" for k, v in MUSIC_DESC.items())
                                             + (f", или настоящие треки из интернета (id, настроение, темп, где «дроп»): {json.dumps(music_mod.library_for_prompt(self.edl.music_library), ensure_ascii=False)}"
                                                if self.edl.music_library else "")
                                             + ". Все тексты (title, concept, goal, visual_style) пиши по-русски."
-                                            + ("\n\n" + ideas_mod.hook_ideas(n=5, seed=self.seed) if self.ideas_on else "")}]
+                                            + "\n\n" + ideas_mod.hook_ideas(n=5 if self.ideas_on else 3, seed=self.seed)
+                                            + ("\n\n" + THINK_PLAN if self.think else "")}]
         sb = self.ask_json("plan", msgs, schema, max_tokens=2500, temperature=0.7, think=self.think)
+        self.hook = sb.get("hook") or {}
+        self.ending = cut_words(sb.get("ending", ""), 200)
         total = sum(max(2.0, float(s.get("target_seconds", 8))) for s in sb["sections"]) or 1
         scale = self.seconds / total if self.guardrails == "full" else 1.0  # full: arithmetic belongs to the harness
         names = set()
@@ -352,11 +382,14 @@ class Agent:
             self.edl.sections[-1].visual_style = s.get("visual_style", "")[:200]
             self.edl.sections[-1].asset_group = s.get("asset_group", "any") if s.get("asset_group") in self.groups else "any"
             self.edl.sections[-1].transition_in = s.get("transition_in", "cross_dissolve") if s.get("transition_in") in TRANSITIONS else "cross_dissolve"
-            self.edl.sections[-1].key_message = re.sub(r"\s+", " ", str(s.get("key_message", ""))).strip()[:40]
-        self.storyboard = {"title": sb["title"], "concept": sb["concept"],
+            self.edl.sections[-1].key_message = cut_words(s.get("key_message", ""), 40)
+            self.edl.sections[-1].shots_hint = int(s.get("shots") or 0)
+            self.edl.sections[-1].caption_style = s.get("caption_style") if s.get("caption_style") in CAPTION_STYLES else ""
+        self.storyboard = {"title": sb["title"], "concept": sb["concept"], "hook": self.hook, "ending": self.ending,
                            "sections": [{"name": s.name, "goal": s.goal, "target_seconds": s.target_seconds, "music": s.music,
                                          "visual_style": getattr(s, "visual_style", ""), "asset_group": getattr(s, "asset_group", "any"),
-                                         "transition_in": getattr(s, "transition_in", "cut"), "key_message": getattr(s, "key_message", "")} for s in self.edl.sections]}
+                                         "transition_in": getattr(s, "transition_in", "cut"), "key_message": getattr(s, "key_message", ""),
+                                         "shots": getattr(s, "shots_hint", 0), "caption_style": getattr(s, "caption_style", "")} for s in self.edl.sections]}
         (self.run_dir / "storyboard.json").write_text(json.dumps(self.storyboard, ensure_ascii=False, indent=1))
         self.step("storyboard", {"seconds": self.seconds}, self.storyboard)
         self.emit_timeline()
@@ -391,14 +424,20 @@ class Agent:
                                                "для карточек text_anim.\n\n" if self.mode == "rich" else "")
                                             + (ideas_mod.ideas_prompt(n=8, seed=self.seed + k) + "\n\n" if self.ideas_on else "")
                                             + f"Сейчас собери ТОЛЬКО секцию «{sec.name}» (до неё: {prev}, после: {nxt}). Цель: {sec.goal}. "
-                                            f"Визуальный стиль: {getattr(sec, 'visual_style', '')}. Главная мысль, которая должна прозвучать в подписи или карточке: «{getattr(sec, 'key_message', '')}». Длительность секции около {sec.target_seconds} с.\n"
-                                            "Кадр kind=picture: asset (id из списка), seconds 0.8-6, motion и look (меняй их от кадра к кадру под настроение секции), caption (до 60 символов, может быть пустой) со стилем и позицией, effects (0-2).\n"
+                                            f"Визуальный стиль: {getattr(sec, 'visual_style', '')}. Главная мысль, которая должна прозвучать в подписи или карточке: «{getattr(sec, 'key_message', '')}». Длительность секции около {sec.target_seconds} с"
+                                            + (f", примерно {sec.shots_hint} кадров по ~{round(sec.target_seconds / max(1, sec.shots_hint), 1)} с" if getattr(sec, "shots_hint", 0) else "")
+                                            + (f". Стиль подписей секции: {sec.caption_style}" if getattr(sec, "caption_style", "") else "") + ".\n"
+                                            + (f"Это начало ролика: ПЕРВЫЙ кадр — крючок из раскадровки: картинка {self.hook.get('asset')} и подпись «{self.hook.get('caption')}» "
+                                               f"(короткий, 0.8-1.5 с, сразу в действие, не заставка).\n" if k == 0 and getattr(self, "hook", None) else "")
+                                            + (f"Это финал ролика: {self.ending}\n" if k + 1 == len(self.edl.sections) and getattr(self, "ending", "") else "")
+                                            + "Кадр kind=picture: asset (id из списка), seconds 0.8-6, motion и look (меняй их от кадра к кадру под настроение секции), caption (до 60 символов, может быть пустой) со стилем и позицией, effects (0-2).\n"
                                             "Кадр kind=card: полноэкранная карточка, asset=\"\", card_title (до 28 символов), card_subtitle, card_style, seconds 1.5-3.\n"
                                             "transition_out — переход в следующий кадр (cut — склейка). Подбирай картинки по смыслу описаний, не повторяй одну картинку. "
                                             + ("Это интро или финал: бери по одной картинке из разных групп. " if getattr(sec, "asset_group", "any") == "any" else
                                                f"Бери картинки только из группы {sec.asset_group}. " if self.guardrails == "full" else
                                                f"Подсказка: для этой секции подходят картинки группы {sec.asset_group}, но можешь брать любые, если так сильнее. ")
-                                            + "Все подписи и заголовки — только по-русски, без эмодзи."}]
+                                            + "Все подписи и заголовки — только по-русски, без эмодзи."
+                                            + ("\n\n" + THINK_BUILD if self.think else "")}]
         out = self.ask_json(f"build:{sec.name}", msgs, self.shot_schema(getattr(sec, "asset_group", "any")), max_tokens=2500, temperature=0.6, think=self.think)
         return k, out
 
@@ -469,7 +508,7 @@ class Agent:
                 card = self.edl.make_shot({"card_title": key, "card_style": "final" if last else "minimal", "seconds": 2.5}, sec.name, warnings)
                 if card:
                     card.seconds = max(card.seconds, self.reading_seconds(card))
-                    shots.insert(len(shots) if last else 0, card)
+                    shots.insert(len(shots) if last else (1 if k == 0 and shots else 0), card)  # never shot 1 of the video
                     warnings.append(f"key message «{key}» was missing: added a card")
             # 4) repeated pictures inside the section
             seen = set()
