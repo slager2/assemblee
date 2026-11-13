@@ -24,12 +24,13 @@ from pathlib import Path
 from . import assets as assets_mod
 from . import ideas as ideas_mod
 from . import music as music_mod
+from . import voice as voice_mod
 from . import vocab
 from . import templates
 from .templates import CARD_IDS, CAPTION_IDS, render_card
 from .compiler import compile_edl, picture_media
 from .config import FONT_BOLD, REPO
-from .edl import EDL, EFFECTS, LIMITS, clamp, LOOKS, MOTIONS, MUSIC, TRANSITIONS, Section
+from .edl import EDL, EFFECTS, LIMITS, clean_text, clamp, LOOKS, MOTIONS, MUSIC, TRANSITIONS, Section
 from .events import EventLog
 from .llm import LLM, LLMError
 from .media import POSITIONS, h, thumb
@@ -135,7 +136,7 @@ class Agent:
     def __init__(self, task: str, assets_dir: Path, briefs: list[Path], run_dir: Path, seconds: float = 60, slots: int = 2,
                  llm: LLM | None = None, max_polish_turns=10, review_rounds=2, output_name="video.mp4", mode="strict", fetch: str | None = None,
                  guardrails="full", think=False, think_budget=1024, planner=None, director=None,
-                 music_web=False, ideas=None, surprise=False):
+                 music_web=False, ideas=None, surprise=False, voice=None):
         """guardrails: full (the harness fixes durations, key messages, transitions, asset groups itself), light (only
         validation; everything else becomes feedback the model sees in polish), off (light without reading-time
         warnings and duplicate removal). think: storyboard and section building think first. planner: "9b" runs
@@ -154,6 +155,7 @@ class Agent:
         if planner and planner not in PLANNERS:
             raise ValueError(f"planner must be one of {list(PLANNERS)}")
         self.music_web, self.surprise = bool(music_web), bool(surprise)
+        self.voice = voice_mod.pick_voice(voice) if voice and voice != "off" else None  # voice-over: a name from voice.VOICES
         self.ideas_on = (mode == "rich") if ideas is None else bool(ideas)
         self.seed = int(time.time()) % 100000  # different inspiration recipes every run
         self.concept, self.image_groups, self.music_moods, self.music_queries = None, None, None, None
@@ -361,6 +363,7 @@ class Agent:
             raise RuntimeError(f"no pictures found in {self.assets_dir}")
         self.edl = EDL(cat, mode=self.mode)
         self.edl.music_library = library
+        self.edl.voice = self.voice
         self._thumbs = {}
         self.assets_text = assets_mod.compact_list(cat)
         self.groups = sorted({k.split("/")[0] for k in cat if "/" in k})
@@ -380,7 +383,9 @@ class Agent:
                 "music": {"type": "string", "enum": self.edl.music_choices()}, "music_db": {"type": "number", "minimum": -24, "maximum": 3}, "visual_style": {"type": "string"},
                 "asset_group": {"type": "string", "enum": self.groups + ["any"]},
                 "transition_in": {"type": "string", "enum": TRANSITIONS},
-                "key_message": {"type": "string", "maxLength": 40, "description": "главная мысль секции, 2-6 слов по-русски; обязательно появится в кадре"}},
+                "key_message": {"type": "string", "maxLength": 40, "description": "главная мысль секции, 2-6 слов по-русски; обязательно появится в кадре"},
+                **({"narration": {"type": "string", "maxLength": 200, "description": "закадровый текст секции, разговорный стиль, 1-2 коротких предложения; пустая строка = секция без голоса"}}
+                   if self.voice else {})},
                 "required": ["name", "goal", "target_seconds", "shots", "caption_style", "music", "visual_style", "asset_group", "transition_in", "key_message"]}}},
             "required": ["title", "concept", "hook", "ending", "sections"]}
         msgs = [{"role": "system", "content": SYSTEM},
@@ -399,6 +404,9 @@ class Agent:
                                             + (f", или настоящие треки из интернета (id, настроение, темп, где «дроп»): {json.dumps(music_mod.library_for_prompt(self.edl.music_library), ensure_ascii=False)}"
                                                if self.edl.music_library else "")
                                             + ". Все тексты (title, concept, goal, visual_style) пиши по-русски."
+                                            + (" Ролик озвучивает диктор: для секций, где нужен голос, дай narration — закадровый текст по-русски, "
+                                               "как говорят вслух: 1-2 коротких предложения (до 130 символов, ≈ 2.5 слова в секунду), без эмодзи и скобок, числа словами, "
+                                               "не повторяй подпись слово в слово, а дополняй её. Секция со словами станет не короче, чем их проговорить." if self.voice else "")
                                             + "\n\n" + ideas_mod.hook_ideas(n=5 if self.ideas_on else 3, seed=self.seed)
                                             + ("\n\n" + THINK_PLAN if self.think else "")}]
         sb = self.ask_json("plan", msgs, schema, max_tokens=2500, temperature=0.7, think=self.think_for("plan"))
@@ -419,13 +427,16 @@ class Agent:
             self.edl.sections[-1].asset_group = s.get("asset_group", "any") if s.get("asset_group") in self.groups else "any"
             self.edl.sections[-1].transition_in = s.get("transition_in", "cross_dissolve") if s.get("transition_in") in TRANSITIONS else "cross_dissolve"
             self.edl.sections[-1].key_message = cut_words(s.get("key_message", ""), 40)
+            if self.voice:
+                self.edl.sections[-1].narration = cut_words(clean_text(s.get("narration", ""), 220), 200)
             self.edl.sections[-1].shots_hint = int(s.get("shots") or 0)
             self.edl.sections[-1].caption_style = s.get("caption_style") if s.get("caption_style") in CAPTION_STYLES else ""
         self.storyboard = {"title": sb["title"], "concept": sb["concept"], "hook": self.hook, "ending": self.ending,
                            "sections": [{"name": s.name, "goal": s.goal, "target_seconds": s.target_seconds, "music": s.music,
                                          "visual_style": getattr(s, "visual_style", ""), "asset_group": getattr(s, "asset_group", "any"),
                                          "transition_in": getattr(s, "transition_in", "cut"), "key_message": getattr(s, "key_message", ""),
-                                         "shots": getattr(s, "shots_hint", 0), "caption_style": getattr(s, "caption_style", "")} for s in self.edl.sections]}
+                                         "shots": getattr(s, "shots_hint", 0), "caption_style": getattr(s, "caption_style", ""),
+                                         **({"narration": s.narration} if self.voice else {})} for s in self.edl.sections]}
         (self.run_dir / "storyboard.json").write_text(json.dumps(self.storyboard, ensure_ascii=False, indent=1))
         self.step("storyboard", {"seconds": self.seconds}, self.storyboard)
         self.emit_timeline()
@@ -468,6 +479,8 @@ class Agent:
                                             f"Визуальный стиль: {getattr(sec, 'visual_style', '')}. Главная мысль, которая должна прозвучать в подписи или карточке: «{getattr(sec, 'key_message', '')}». Длительность секции около {sec.target_seconds} с"
                                             + (f", примерно {sec.shots_hint} кадров по ~{round(sec.target_seconds / max(1, sec.shots_hint), 1)} с" if getattr(sec, "shots_hint", 0) else "")
                                             + (f". Стиль подписей секции: {sec.caption_style}" if getattr(sec, "caption_style", "") else "") + ".\n"
+                                            + (f"Закадровый текст секции (диктор прочтёт его на протяжении секции; подбери картинки по смыслу, подписи не дублируют его): «{sec.narration}»\n"
+                                               if self.voice and getattr(sec, "narration", "") else "")
                                             + (f"Это начало ролика: ПЕРВЫЙ кадр — крючок из раскадровки: картинка {self.hook.get('asset')} и подпись «{self.hook.get('caption')}» "
                                                f"(короткий, 0.8-1.5 с, сразу в действие, не заставка).\n" if k == 0 and getattr(self, "hook", None) else "")
                                             + (f"Это финал ролика: {self.ending}\n" if k + 1 == len(self.edl.sections) and getattr(self, "ending", "") else "")

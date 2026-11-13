@@ -23,4 +23,9 @@ FONT_BOLD = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
 FONT_BOOK = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
 FONT_SANS = "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf"
 FONT_MONO = "/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf"
+
+# local text-to-speech (scripts/setup_tts.sh installs both engines into their own venvs; the LLM keeps the GPU, TTS runs on the CPU)
+TTS_MODELS = _p("ASSEMBLEE_TTS_MODELS", "~/.cache/assemblee-tts-models")
+TTS_PY = {"silero": _p("ASSEMBLEE_TTS_SILERO_PY", "~/.cache/assemblee-silero/bin/python"),
+          "piper": _p("ASSEMBLEE_TTS_PIPER_PY", "~/.cache/assemblee-tts/bin/python")}
 RENDER_VERSION = 4  # bump when rendering of captions/cards/pictures changes

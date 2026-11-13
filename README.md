@@ -147,3 +147,13 @@ Python 3.12 + Pillow + aiohttp, ffmpeg, бинарники FilmCraft 0.20.1 и E
 через EffectCraft, 11 новых Pillow + ffmpeg). Схема и компактный список для промпта генерируются из реестра
 (`templates.schema_props`, `templates.prompt_section`); параметры целые или enum. Галерея всех шаблонов:
 `python3 scripts/template_gallery.py --out gallery [--ec]`. Старые EDL работают без изменений (`layout` = `auto`).
+
+## Закадровый голос (локально, на CPU)
+
+`python3 -m assemblee run ... --voice aidar` (по умолчанию `off`). Движки стоят в своих venv (`scripts/setup_tts.sh`), GPU остаётся у LLM.
+
+- по умолчанию **Silero v5_ru** (aidar xenia baya kseniya eugene): torch CPU, RTF ~0.03, ударения и «ё» ставятся сами; модели CC BY-NC-SA 4.0 (некоммерческое использование).
+- запасной **Piper ru_RU** (irina denis dmitri ruslan, `--voice irina`): только onnxruntime, RTF ~0.02, интонация площе, ошибки ударений espeak; piper-tts под GPL-3, датасет `ruslan` некоммерческий.
+- `assemblee/voice.py`: `synthesize(text, voice, rate)` -> wav 48 кГц стерео из кэша (loudnorm I=-16), `list_voices()`, `Voice.timeline()` с длительностями фраз.
+- EDL: `Section.narration` / `Shot.narration`; `EDL.fit_narration()` удлиняет кадры до длины речи + 0.35 с, компилятор кладёт голос на A5 и приглушает музыку на 12 дБ (`edl.duck_db`) ключами Volume.
+- `python3 scripts/smoke_voice.py [assets] [out.mp4] [voice] [--loud] [--no-duck]` проверяет уровни по окнам.

@@ -1,7 +1,7 @@
 """assemblee CLI.
 
   python3 -m assemblee run --task "..." --assets DIR [--brief file.md ...] [--seconds 60] [--slots 2] [--name video.mp4]
-        [--vocab strict|rich] [--guardrails full|light|off] [--think] [--planner 9b] [--director] [--max]
+        [--vocab strict|rich] [--voice off|aidar|xenia|irina...] [--guardrails full|light|off] [--think] [--planner 9b] [--director] [--max]
   python3 -m assemblee catalog DIR        # describe every picture once with the vision model (cached)
 """
 import argparse
@@ -44,6 +44,7 @@ def main(argv=None):
     r.add_argument("--planner", choices=["9b"], default=None, help="plan/build/polish on Qwen3.5-9B, vision on the 4B (swaps llama-server via scripts/serve_llm.sh)")
     r.add_argument("--director", action=argparse.BooleanOptionalAction, default=None,
                    help="contact-sheet self-review by the vision model after polish (default: on unless --guardrails full)")
+    r.add_argument("--voice", default="off", help="voice-over: off, or a Russian voice (aidar xenia baya kseniya eugene = silero default engine; irina denis dmitri ruslan = piper); python3 -m assemblee.voice lists them")
     r.add_argument("--max", action="store_true", help="= --vocab rich --guardrails light --think --planner 9b --director")
     c = sub.add_parser("catalog", help="describe pictures with the vision model")
     c.add_argument("dir", type=Path)
@@ -71,14 +72,14 @@ def main(argv=None):
     (run_dir / "task.json").write_text(json.dumps({"run_id": run_id, "task": task, "assets_dir": str(a.assets), "briefs": [str(b) for b in a.brief],
                                                     "vocab": a.vocab, "fetch": a.fetch, "guardrails": a.guardrails, "think": a.think,
                                                     "planner": a.planner, "director": a.director, "surprise": a.surprise, "music": a.music,
-                                                    "model": llm.model_name(), "seconds": a.seconds, "slots": a.slots, "created_at": time.time()},
+                                                    "voice": a.voice, "model": llm.model_name(), "seconds": a.seconds, "slots": a.slots, "created_at": time.time()},
                                                    ensure_ascii=False, indent=1))
     print("run:", run_dir, flush=True)
     from .agent import Agent
     summary = Agent(task, a.assets, a.brief, run_dir, seconds=a.seconds, slots=a.slots, llm=llm, max_polish_turns=a.polish_turns,
                     review_rounds=a.review_rounds, output_name=a.name, mode=a.vocab, fetch=a.fetch, guardrails=a.guardrails,
                     think=a.think, think_budget=a.think_budget, planner=a.planner, director=a.director,
-                    music_web=a.music == "web", ideas=a.ideas, surprise=a.surprise).run()
+                    music_web=a.music == "web", ideas=a.ideas, surprise=a.surprise, voice=a.voice).run()
     print(json.dumps({k: v for k, v in summary.items() if k != "edl"}, ensure_ascii=False, indent=1))
 
 
