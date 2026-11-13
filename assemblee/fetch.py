@@ -316,7 +316,7 @@ def download(results, dest_dir, max_images=30, group="web", on_event=None, worke
     lock = threading.Lock()
     credits = load_credits(dest)
     rejected = _load_rejected(dest)
-    seen_urls = {url_key(c["image_url"]) for c in credits.values()} | {url_key(u) for u in rejected}
+    seen_urls = {url_key(c["image_url"]) for c in credits.values() if c.get("image_url")} | {url_key(u) for u in rejected}
     hashes = [int(c["dhash"], 16) for c in credits.values() if c.get("dhash")]
     todo = []
     for r in results:
