@@ -1,7 +1,7 @@
 """Polish-phase tools: small, enum-constrained edits of the EDL (never of the NLE directly)."""
 from . import vocab
 from .cards import CARD_STYLES
-from .edl import EDL, is_animated, EFFECTS, LOOKS, MOTIONS, MUSIC, SFX, TRANSITIONS, Caption, clamp, pick, LIMITS
+from .edl import EDL, clean_text, is_animated, EFFECTS, LOOKS, MOTIONS, MUSIC, SFX, TRANSITIONS, Caption, clamp, pick, LIMITS
 from .media import CAPTION_STYLES, POSITIONS
 
 
@@ -102,7 +102,7 @@ class PolishTools:
             if not rich and any(k in f for k in ("grade", "camera", "speed", "text_anim")):
                 w.append("grade/camera/speed/text_anim need rich mode, ignored")
             if "caption" in f:
-                text = str(f["caption"]).replace("\\n", "\n")[:120]
+                text = clean_text(str(f["caption"]).replace("\\n", "\n"), 120)
                 if not text:
                     s.caption = None
                 elif s.caption:  # new text keeps the style and position the shot already had
@@ -115,9 +115,9 @@ class PolishTools:
                 s.caption.position = pick(f["caption_position"], POSITIONS, s.caption.position, "caption_position", w)
         else:
             if "card_title" in f:
-                s.title = str(f["card_title"])[:40]
+                s.title = clean_text(f["card_title"], 40) or s.title
             if "card_subtitle" in f:
-                s.subtitle = str(f["card_subtitle"])[:80]
+                s.subtitle = clean_text(f["card_subtitle"], 80)
             if "card_style" in f:
                 s.card_style = pick(f["card_style"], CARD_STYLES, s.card_style, "card_style", w)
             if "text_anim" in f and self.edl.mode == "rich":
