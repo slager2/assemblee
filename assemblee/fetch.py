@@ -64,7 +64,7 @@ def _get(url, timeout=20, retries=2, max_bytes=None, accept="application/json"):
                 n = int(r.headers.get("Content-Length") or 0)
                 if max_bytes and n > max_bytes:
                     raise FetchError(f"too large: {n} bytes")
-                data = r.read(max_bytes + 1 if max_bytes else -1)
+                data = r.read(max_bytes + 1) if max_bytes else r.read()  # read(-1) leaks chunk framing
                 if max_bytes and len(data) > max_bytes:
                     raise FetchError(f"too large: >{max_bytes} bytes")
                 return data, r.headers
@@ -99,6 +99,14 @@ def _strip_html(s):
     s = re.sub(r"<[^>]+>", " ", s or "")
     s = s.replace("&amp;", "&").replace("&quot;", '"').replace("&#039;", "'").replace("&nbsp;", " ")
     return re.sub(r"\s+", " ", s).strip()
+
+
+def url_key(url):
+    """Same file under different hosts/thumb sizes (Openverse vs Commons thumbnails) -> one key."""
+    name = urllib.parse.unquote(url.split("?")[0].rstrip("/").rsplit("/", 1)[-1]).lower()
+    if "wikimedia.org/" in url:
+        return "wm:" + re.sub(r"^\d+px-", "", name)
+    return url.split("?")[0]
 
 
 def _result(**kw):
@@ -231,13 +239,13 @@ def search_images(query, n=10, orientation=None, providers=DEFAULT_PROVIDERS, on
             while q:
                 r = q.pop(0)
                 url = r["image_url"]
-                if not url or url in seen:
+                if not url or url_key(url) in seen:
                     continue
                 if r["mime"] and r["mime"] not in MIMES:
                     continue
                 if r["width"] and r["height"] and min(r["width"], r["height"]) < MIN_SHORT_SIDE:
                     continue
-                seen.add(url)
+                seen.add(url_key(url))
                 out.append(r)
                 break
             if len(out) >= n:
@@ -298,9 +306,13 @@ def download(results, dest_dir, max_images=30, group="web", on_event=None, worke
     lock = threading.Lock()
     credits = load_credits(dest)
     rejected = _load_rejected(dest)
-    seen_urls = {c["image_url"] for c in credits.values()} | set(rejected)
+    seen_urls = {url_key(c["image_url"]) for c in credits.values()} | {url_key(u) for u in rejected}
     hashes = [int(c["dhash"], 16) for c in credits.values() if c.get("dhash")]
-    todo = [r for r in results if r["image_url"] not in seen_urls]
+    todo = []
+    for r in results:
+        if url_key(r["image_url"]) not in seen_urls:
+            seen_urls.add(url_key(r["image_url"]))
+            todo.append(r)
     written, emit = [], (on_event or (lambda *a: None))
     stop = threading.Event()
 
@@ -482,8 +494,8 @@ def gather(task_text, llm, dest_dir, per_query=6, max_total=30, groups=None, ori
         for res in candidates:
             part = res[:per_budget] if rank == 0 else res[per_budget:per_query * 2]
             for r in part:
-                if r["image_url"] not in seen:
-                    seen.add(r["image_url"])
+                if url_key(r["image_url"]) not in seen:
+                    seen.add(url_key(r["image_url"]))
                     ordered.append(r)
     got, done = step("download_images", {"candidates": len(ordered), "max": max_total},
                      lambda: download(ordered, dest, max_total, on_event=on_event))
