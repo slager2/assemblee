@@ -20,6 +20,8 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from . import assets as assets_mod
+from . import ideas as ideas_mod
+from . import music as music_mod
 from . import vocab
 from .cards import CARD_STYLES, render_card
 from .compiler import compile_edl, picture_media
@@ -95,7 +97,8 @@ def text_match(read, expected):
 class Agent:
     def __init__(self, task: str, assets_dir: Path, briefs: list[Path], run_dir: Path, seconds: float = 60, slots: int = 2,
                  llm: LLM | None = None, max_polish_turns=10, review_rounds=2, output_name="video.mp4", mode="strict", fetch: str | None = None,
-                 guardrails="full", think=False, think_budget=1024, planner=None, director=None):
+                 guardrails="full", think=False, think_budget=1024, planner=None, director=None,
+                 music_web=False, ideas=None, surprise=False):
         """guardrails: full (the harness fixes durations, key messages, transitions, asset groups itself), light (only
         validation; everything else becomes feedback the model sees in polish), off (light without reading-time
         warnings and duplicate removal). think: storyboard and section building think first. planner: "9b" runs
@@ -113,6 +116,10 @@ class Agent:
         self.director_on = (guardrails != "full") if director is None else bool(director)
         if planner and planner not in PLANNERS:
             raise ValueError(f"planner must be one of {list(PLANNERS)}")
+        self.music_web, self.surprise = bool(music_web), bool(surprise)
+        self.ideas_on = (mode == "rich") if ideas is None else bool(ideas)
+        self.seed = int(time.time()) % 100000  # different inspiration recipes every run
+        self.concept, self.image_groups, self.music_moods, self.music_queries = None, None, None, None
         self.swaps, self.phase_seconds = [], {}
         self.turn = 0
         self.counters = {"tool_calls": 0, "errors": 0}
@@ -232,6 +239,40 @@ class Agent:
         self.ev.emit("phase", name=phase, note=f"модель {want} готова за {dt} с")
 
     # ---------- phases ----------
+    def concept_phase(self):
+        """The model invents the video itself: idea, what pictures to look for online, what music. Nothing is chosen by the harness."""
+        self.ev.emit("phase", name="plan", note="модель придумывает концепцию, что искать в интернете и какую музыку")
+        q = {"type": "array", "minItems": 2, "maxItems": 4, "items": {"type": "string", "maxLength": 60}}
+        schema = {"type": "object", "properties": {
+            "title": {"type": "string", "maxLength": 60}, "logline": {"type": "string", "maxLength": 300},
+            "why_surprising": {"type": "string", "maxLength": 300}, "style": {"type": "string", "maxLength": 300},
+            "picture_groups": {"type": "array", "minItems": 2, "maxItems": 5, "items": {"type": "object", "properties": {
+                "name": {"type": "string", "maxLength": 24}, "shows": {"type": "string", "maxLength": 120}, "queries_en": q},
+                "required": ["name", "shows", "queries_en"], "additionalProperties": False}},
+            "music_moods": {"type": "array", "minItems": 1, "maxItems": 3, "items": {"type": "object", "properties": {
+                "name": {"type": "string", "maxLength": 24}, "description": {"type": "string", "maxLength": 120}, "queries_en": q},
+                "required": ["name", "description", "queries_en"], "additionalProperties": False}}},
+            "required": ["title", "logline", "why_surprising", "style", "picture_groups", "music_moods"]}
+        msgs = [{"role": "system", "content": SYSTEM},
+                {"role": "user", "content": f"ЗАПРОС:\n{self.task}\n\nДлительность: около {int(self.seconds)} секунд.\n"
+                                            + (f"\nМАТЕРИАЛЫ:\n{self.briefs_text}\n" if self.briefs_text else "")
+                                            + "\nПридумай сам, каким будет ролик — так, чтобы зритель удивился: неожиданная идея, сильный крючок в первые 2 секунды, "
+                                            "необычная подача. Ты сам решаешь тему, стиль, какие картинки найти в интернете (группы и поисковые запросы на английском "
+                                            "для фотобанков с открытыми лицензиями — Openverse и Wikimedia Commons, ищи конкретные вещи, а не абстракции) и какую музыку найти "
+                                            "(настроения и запросы на английском для Jamendo/ccMixter). Тексты title/logline/why_surprising/style — по-русски.\n\n"
+                                            + ideas_mod.hook_ideas(n=6, seed=self.seed)}]
+        c = self.ask_json("concept", msgs, schema, max_tokens=1800, temperature=0.9, think=self.think)
+        self.concept = c
+        self.image_groups = [{"name": re.sub(r"[^a-z0-9_]+", "_", g["name"].lower()).strip("_")[:24] or f"g{i}", "shows": g["shows"],
+                              "queries": g["queries_en"]} for i, g in enumerate(c["picture_groups"])]
+        names = [re.sub(r"[^a-z0-9_]+", "_", m["name"].lower()).strip("_")[:24] or f"m{i}" for i, m in enumerate(c["music_moods"])]
+        self.music_moods = {n: m["description"] for n, m in zip(names, c["music_moods"])}
+        self.music_queries = {n: m["queries_en"] for n, m in zip(names, c["music_moods"])}
+        (self.run_dir / "concept.json").write_text(json.dumps(c, ensure_ascii=False, indent=1))
+        self.task = (f"{self.task}\n\nКОНЦЕПЦИЯ (придумана тобой): «{c['title']}». {c['logline']} Почему удивит: {c['why_surprising']} "
+                     f"Стиль: {c['style']}")
+        self.step("concept", {"request": self.task[:200]}, c)
+
     def explore(self):
         self.ev.emit("phase", name="explore", note="читаю материалы и каталог картинок")
         self.briefs_text = "\n\n".join(f"### {b.stem}\n{brief_summary(b)}" for b in self.briefs if b.exists())
@@ -239,14 +280,26 @@ class Agent:
         def described(key, entry):
             self.step("describe_asset", {"asset": key}, {"what": entry["what"], "mood": entry["mood"]})
 
-        if self.fetch:
+        if self.fetch or self.image_groups:
             from . import fetch as fetch_mod
-            self.ev.emit("phase", name="explore", note=f"ищу и скачиваю картинки: {self.fetch}")
-            fetch_mod.gather(self.fetch, self.llm, self.assets_dir, on_event=lambda t, d: self.ev.emit(t, **d))
+            self.ev.emit("phase", name="explore", note=f"ищу и скачиваю картинки: {self.fetch or ', '.join(g['name'] for g in self.image_groups)}")
+            fetch_mod.gather(self.fetch or self.task, self.llm, self.assets_dir, groups=self.image_groups,
+                             on_event=lambda t, d: self.ev.emit(t, **d))
+        library = {}
+        if self.music_web:
+            self.ev.emit("phase", name="explore", note="ищу и скачиваю музыку с открытыми лицензиями")
+            moods = self.music_moods or {"main": self.task[:200]}
+            try:
+                lib = music_mod.gather_music(self.task, self.llm, self.run_dir, moods, queries=self.music_queries,
+                                             on_event=lambda t, d: self.ev.emit(t, **d))
+                library = {t["id"]: t for t in lib}
+            except Exception as e:
+                self.ev.emit("warning", message=f"музыка из интернета не скачалась: {str(e)[:200]}; остаются встроенные подложки")
         cat = assets_mod.load_or_build(self.assets_dir, llm=self.llm, on_item=described)
         if not cat:
             raise RuntimeError(f"no pictures found in {self.assets_dir}")
         self.edl = EDL(cat, mode=self.mode)
+        self.edl.music_library = library
         self._thumbs = {}
         self.assets_text = assets_mod.compact_list(cat)
         self.groups = sorted({k.split("/")[0] for k in cat if "/" in k})
@@ -258,7 +311,7 @@ class Agent:
             "title": {"type": "string"}, "concept": {"type": "string"},
             "sections": {"type": "array", "minItems": 3, "maxItems": 8, "items": {"type": "object", "properties": {
                 "name": {"type": "string"}, "goal": {"type": "string"}, "target_seconds": {"type": "number"},
-                "music": {"type": "string", "enum": list(MUSIC)}, "music_db": {"type": "number"}, "visual_style": {"type": "string"},
+                "music": {"type": "string", "enum": self.edl.music_choices()}, "music_db": {"type": "number"}, "visual_style": {"type": "string"},
                 "asset_group": {"type": "string", "enum": self.groups + ["any"]},
                 "transition_in": {"type": "string", "enum": TRANSITIONS},
                 "key_message": {"type": "string", "description": "главная мысль секции, 2-6 слов по-русски; обязательно появится в кадре"}},
@@ -271,7 +324,11 @@ class Agent:
                                             "Для каждой: короткое имя (латиницей, без пробелов), key_message — главная мысль секции в 2-6 словах, цель секции, сколько секунд, музыка, визуальный стиль, "
                                             "asset_group — из какой папки картинок брать кадры (any — из любой, для интро и финала), "
                                             "transition_in — переход при входе в секцию (не cut: разные секции должны отличаться). Музыка: "
-                                            + ", ".join(MUSIC) + ". Все тексты (title, concept, goal, visual_style) пиши по-русски."}]
+                                            + ", ".join(MUSIC)
+                                            + (f", или настоящие треки из интернета (id, настроение, темп, где «дроп»): {json.dumps(music_mod.library_for_prompt(self.edl.music_library), ensure_ascii=False)}"
+                                               if self.edl.music_library else "")
+                                            + ". Все тексты (title, concept, goal, visual_style) пиши по-русски."
+                                            + ("\n\n" + ideas_mod.hook_ideas(n=5, seed=self.seed) if self.ideas_on else "")}]
         sb = self.ask_json("plan", msgs, schema, max_tokens=2500, temperature=0.7, think=self.think)
         total = sum(max(2.0, float(s.get("target_seconds", 8))) for s in sb["sections"]) or 1
         scale = self.seconds / total if self.guardrails == "full" else 1.0  # full: arithmetic belongs to the harness
@@ -282,7 +339,7 @@ class Agent:
                 name += "_2"
             names.add(name)
             self.edl.sections.append(Section(name=name, goal=s["goal"][:300], target_seconds=round(max(2.0, float(s["target_seconds"])) * scale, 1),
-                                             music=s["music"] if s["music"] in MUSIC else "none", music_db=float(s.get("music_db", -10) or -10)))
+                                             music=self.edl.resolve_music(s["music"], []), music_db=float(s.get("music_db", -10) or -10)))
             self.edl.sections[-1].visual_style = s.get("visual_style", "")[:200]
             self.edl.sections[-1].asset_group = s.get("asset_group", "any") if s.get("asset_group") in self.groups else "any"
             self.edl.sections[-1].transition_in = s.get("transition_in", "cross_dissolve") if s.get("transition_in") in TRANSITIONS else "cross_dissolve"
@@ -323,6 +380,7 @@ class Agent:
                                             + (f"СЛОВАРЬ ПРИЁМОВ (можно использовать любые, подбирай под настроение секции):\n{vocab.prompt_section('rich', with_params=False)}\n"
                                                "Для картинок можно задавать grade (цвет числами), camera (движение камеры с easing), effects как {id, amount}; "
                                                "для карточек text_anim.\n\n" if self.mode == "rich" else "")
+                                            + (ideas_mod.ideas_prompt(n=8, seed=self.seed + k) + "\n\n" if self.ideas_on else "")
                                             + f"Сейчас собери ТОЛЬКО секцию «{sec.name}» (до неё: {prev}, после: {nxt}). Цель: {sec.goal}. "
                                             f"Визуальный стиль: {getattr(sec, 'visual_style', '')}. Главная мысль, которая должна прозвучать в подписи или карточке: «{getattr(sec, 'key_message', '')}». Длительность секции около {sec.target_seconds} с.\n"
                                             "Кадр kind=picture: asset (id из списка), seconds 0.8-6, motion и look (меняй их от кадра к кадру под настроение секции), caption (до 60 символов, может быть пустой) со стилем и позицией, effects (0-2).\n"
@@ -334,6 +392,18 @@ class Agent:
                                             + "Все подписи и заголовки — только по-русски, без эмодзи."}]
         out = self.ask_json(f"build:{sec.name}", msgs, self.shot_schema(getattr(sec, "asset_group", "any")), max_tokens=2500, temperature=0.6, think=self.think)
         return k, out
+
+    def snap_to_beats(self, when):
+        if not self.edl.music_library:
+            return
+        try:
+            report = music_mod.snap_edl(self.edl)
+        except Exception as e:
+            self.ev.emit("warning", message=f"подгонка под бит не удалась: {str(e)[:160]}")
+            return
+        if report:
+            self.step("beat_snap", {"after": when}, {"sections": {k: (str(v)[:160]) for k, v in report.items()}})
+            self.changed()
 
     def build(self):
         self.ev.emit("phase", name="build", note=f"собираю {len(self.edl.sections)} секций, параллельно в {self.slots} слотах")
@@ -531,6 +601,10 @@ class Agent:
         return results
 
     def polish(self):
+        self._polish()
+        self.snap_to_beats("polish")
+
+    def _polish(self):
         self.ev.emit("phase", name="polish", note="доводка: эффекты, звуки, порядок, музыка")
         handler = PolishTools(self.edl, self.changed, guardrails=self.guardrails)
         if self.guardrails == "full":
@@ -670,11 +744,16 @@ class Agent:
     def run(self):
         self.ev.emit("run_start", task=self.task, model=self.llm.model_name(), tools=[t["function"]["name"] for t in POLISH_TOOLS], vocab=self.mode, fetch=self.fetch,
                      assets_dir=str(self.assets_dir), briefs=[str(b) for b in self.briefs], seconds=self.seconds, slots=self.slots,
-                     guardrails=self.guardrails, think=self.think, think_budget=self.think_budget, planner=self.planner, director=self.director_on)
+                     guardrails=self.guardrails, think=self.think, think_budget=self.think_budget, planner=self.planner, director=self.director_on,
+                     music_web=self.music_web, ideas=self.ideas_on, surprise=self.surprise, seed=self.seed)
         ok, reason, out = False, "", None
         try:
-            steps = [("swap", lambda: self.use_model("vision", "explore")), ("explore", self.explore),
-                     ("swap", lambda: self.use_model("planner", "plan")), ("plan", self.plan), ("build", self.build), ("polish", self.polish),
+            steps = []
+            if self.surprise:  # the model invents the video before anything is searched
+                self.briefs_text = "\n\n".join(f"### {b.stem}\n{brief_summary(b)}" for b in self.briefs if b.exists())
+                steps += [("swap", lambda: self.use_model("planner", "concept")), ("concept", self.concept_phase)]
+            steps += [("swap", lambda: self.use_model("vision", "explore")), ("explore", self.explore),
+                     ("swap", lambda: self.use_model("planner", "plan")), ("plan", self.plan), ("build", self.build), ("beat_snap", lambda: self.snap_to_beats("build")), ("polish", self.polish),
                      ("swap", lambda: self.use_model("vision", "director" if self.director_on else "review"))]
             steps += [("director", self.director)] if self.director_on else []
             steps += [("review", self.review), ("export", self.export)]
@@ -690,7 +769,7 @@ class Agent:
             self.ev.emit("error", message=reason[:500], where=traceback.format_exc()[-800:])
         summary = {"ok": ok, "reason": reason, "output": str(out) if out else None, "seconds": getattr(self, "edl", None) and self.edl.total(),
                    "wall_seconds": round(time.time() - self.t0, 1), "llm": dict(self.llm.totals), **self.counters, "swaps": self.swaps,
-                   "phase_seconds": self.phase_seconds,
+                   "phase_seconds": self.phase_seconds, "concept": self.concept,
                    "edl": self.edl.to_dict() if hasattr(self, "edl") else None}
         (self.run_dir / "summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=1, default=str))
         self.ev.emit("run_end", ok=ok, reason=reason, summary={k: v for k, v in summary.items() if k != "edl"})
