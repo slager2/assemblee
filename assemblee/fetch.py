@@ -55,11 +55,11 @@ class FetchError(RuntimeError):
 
 # ---------------------------------------------------------------- http
 
-def _get(url, timeout=20, retries=2, max_bytes=None, accept="application/json"):
+def _get(url, timeout=20, retries=2, max_bytes=None, accept="application/json", headers=None):
     """GET with retries (5xx, 429 with Retry-After, network errors). Returns (bytes, headers)."""
     last = None
     for attempt in range(retries + 1):
-        req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": accept})
+        req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": accept, **(headers or {})})
         try:
             with urllib.request.urlopen(req, timeout=timeout) as r:
                 n = int(r.headers.get("Content-Length") or 0)
@@ -316,7 +316,7 @@ def download(results, dest_dir, max_images=30, group="web", on_event=None, worke
     lock = threading.Lock()
     credits = load_credits(dest)
     rejected = _load_rejected(dest)
-    seen_urls = {url_key(c["image_url"]) for c in credits.values()} | {url_key(u) for u in rejected}
+    seen_urls = {url_key(c["image_url"]) for c in credits.values() if c.get("image_url")} | {url_key(u) for u in rejected}
     hashes = [int(c["dhash"], 16) for c in credits.values() if c.get("dhash")]
     todo = []
     for r in results:

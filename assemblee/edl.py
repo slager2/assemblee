@@ -7,8 +7,11 @@ import difflib
 import re
 from dataclasses import asdict, dataclass, field
 
+from pathlib import Path
+
 from . import vocab
 from .cards import CARD_STYLES
+from .config import AUDIO_DIR
 from .media import CAPTION_STYLES, POSITIONS
 
 LOOKS = {  # Lumetri parameter sets
@@ -113,8 +116,9 @@ class Section:
     name: str
     goal: str = ""
     target_seconds: float = 10.0
-    music: str = "none"
+    music: str = "none"  # a built-in mood (MUSIC) or a downloaded track id from EDL.music_library ("music/<slug>")
     music_db: float = -10.0
+    music_start: float | None = None  # track time at the section's first cut; None = the track's best_start (0 for moods)
 
 
 def is_animated(entry):
@@ -134,6 +138,7 @@ class EDL:
         self.sections: list[Section] = []
         self.shots: list[Shot] = []
         self.sfx: list[dict] = []  # {"kind", "shot" (1-based), "at": start|end}
+        self.music_library: dict = {}  # track id -> music.gather_music entry (path, bpm, beats, best_start, duration...)
 
     # ---- validation ----
     def transition(self, raw, warnings):
@@ -202,6 +207,52 @@ class EDL:
             warnings.append(f"speed: {speed}% needs more source than the clip has for a {seconds}s shot, used {top}%")
             return top
         return speed
+
+    # ---- music ----
+    def music_choices(self):
+        return list(MUSIC) + [k for k in self.music_library if k not in MUSIC]
+
+    def resolve_music(self, value, warnings, default="none"):
+        return pick(value, self.music_choices(), default, "music", warnings)
+
+    def music_path(self, music):
+        """File of a mood or library track (a plain existing path also works); None for "none"/unknown."""
+        if music in MUSIC:
+            return AUDIO_DIR / MUSIC[music] if MUSIC[music] else None
+        if music in self.music_library:
+            return Path(self.music_library[music]["path"])
+        return Path(music) if music and Path(music).is_file() else None
+
+    def music_beds(self):
+        """Consecutive sections with the same music merge into one bed. Each bed: music, start/end (timeline s),
+        db, sections, music_start = track time at the bed start (None = legacy: the file plays from 0 at the
+        crossfade pre-roll), track = the library entry or None."""
+        times, beds = self.times(), []
+        for sec in self.sections:
+            idx = self.section_shots(sec.name)
+            if not idx or sec.music in ("none", None) or self.music_path(sec.music) is None:
+                continue
+            a, b = times[idx[0]][0], times[idx[-1]][1]
+            if beds and beds[-1]["mood"] == sec.music and abs(beds[-1]["end"] - a) < 0.05:
+                beds[-1]["end"] = b
+                beds[-1]["sections"].append(sec.name)
+                continue
+            track = self.music_library.get(sec.music)
+            start = sec.music_start
+            if start is None and track:
+                start = float(track.get("best_start") or 0.0)
+            beds.append({"mood": sec.music, "start": a, "end": b, "db": sec.music_db, "sections": [sec.name],
+                         "music_start": None if start is None else round(max(0.0, float(start)), 3), "track": track})
+        return beds
+
+    def section_track_time(self, name):
+        """(bed, track time at the section's first cut) or (None, None) when the section has no music."""
+        times = self.times()
+        idx = self.section_shots(name)
+        for bed in self.music_beds():
+            if name in bed["sections"] and idx:
+                return bed, (bed["music_start"] or 0.0) + times[idx[0]][0] - bed["start"]
+        return None, None
 
     # ---- queries ----
     def total(self):

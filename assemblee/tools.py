@@ -12,9 +12,11 @@ def _tool(name, desc, props, required):
 
 INT = {"type": "integer"}
 SHOT = {"type": "integer", "description": "shot number from the edit list"}
-def polish_tools(mode="strict"):
+def polish_tools(mode="strict", music=None):
     """Polish tools for a vocabulary mode: in rich mode update_shot also edits grade, camera, speed, text_anim,
-    effects with amounts and transition params (same validation as the build phase)."""
+    effects with amounts and transition params (same validation as the build phase).
+    music: extra allowed music ids (downloaded library tracks) for set_section_music, which then also takes
+    "start" (seconds into the track at the section's first cut)."""
     tools = [dict(t, function=dict(t["function"], parameters=dict(t["function"]["parameters"], properties=dict(t["function"]["parameters"]["properties"]))))
              for t in _BASE]
     frag = vocab.schema_fragments(mode, effect_params=False)
@@ -26,6 +28,12 @@ def polish_tools(mode="strict"):
         for k in ("grade", "camera", "speed", "transition_params", "transition_seconds"):
             props[k] = frag["picture"][k]
         props["text_anim"] = frag["card"]["text_anim"]
+    if music:
+        fn = next(t for t in tools if t["function"]["name"] == "set_section_music")["function"]
+        mp = fn["parameters"]["properties"]
+        mp["mood"] = {"type": "string", "enum": list(MUSIC) + [m for m in music if m not in MUSIC],
+                      "description": "built-in mood or a downloaded track id"}
+        mp["start"] = {"type": "number", "description": "seconds into a downloaded track at the section's first cut; omit = its drop"}
     return tools
 
 
@@ -54,7 +62,7 @@ class PolishTools:
     def __init__(self, edl: EDL, on_change):
         self.edl, self.on_change = edl, on_change
         self.finished = False
-        self.tools = polish_tools(edl.mode)
+        self.tools = polish_tools(edl.mode, music=list(edl.music_library))
 
     def _shot(self, n):
         n = int(n)
@@ -123,13 +131,18 @@ class PolishTools:
         self.on_change()
         return {"ok": True, "order": [x.label() for x in self.edl.shots]}
 
-    def set_section_music(self, section, mood, volume_db=-10):
+    def set_section_music(self, section, mood, volume_db=-10, start=None):
         sec = next((x for x in self.edl.sections if x.name == section), None)
         if not sec:
             return {"error": f"unknown section; sections: {[x.name for x in self.edl.sections]}"}
         w = []
-        sec.music = pick(mood, MUSIC, sec.music, "mood", w)
+        sec.music = self.edl.resolve_music(mood, w, default=sec.music)
         sec.music_db = clamp(volume_db, LIMITS["music_db"], -10.0, "volume_db", w)
+        track = self.edl.music_library.get(sec.music)
+        if start is not None and track:
+            sec.music_start = clamp(start, (0.0, max(0.0, float(track.get("duration") or 0) - 5)), track.get("best_start") or 0.0, "start", w)
+        elif track:
+            sec.music_start = None
         self.on_change()
         return {"ok": True, "warnings": w} if w else {"ok": True}
 

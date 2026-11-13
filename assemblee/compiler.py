@@ -3,13 +3,14 @@
 Each compile starts a new headless FilmCraft session, so the timeline always matches the EDL exactly.
 """
 import base64
+import math
 import time
 from pathlib import Path
 
 from .cards import render_card
 from .config import AUDIO_DIR, FILMCRAFT_CLI, FPS, H, TICKS, W
 from . import vocab
-from .edl import EDL, EFFECTS, LOOKS, MUSIC, SFX
+from .edl import EDL, EFFECTS, LOOKS, SFX
 from .mcp import MCP, MCPError
 from .media import animated_to_vertical_mp4, caption_png, fit_vertical, media_duration
 
@@ -164,22 +165,34 @@ def compile_edl(edl: EDL, on_call=None, on_progress=None) -> Compiled:
             except MCPError as err:
                 warnings.append(f"easing {param}@{t / TICKS:.2f}s: {str(err)[:100]}")
     # music: merge consecutive sections with the same mood into one bed
-    beds = []
-    for sec in edl.sections:
-        idx = edl.section_shots(sec.name)
-        if not idx or sec.music in ("none", None):
-            continue
-        a, b = times[idx[0]][0], times[idx[-1]][1]
-        if beds and beds[-1]["mood"] == sec.music and abs(beds[-1]["end"] - a) < 0.05:
-            beds[-1]["end"] = b
-        else:
-            beds.append({"mood": sec.music, "start": a, "end": b, "db": sec.music_db})
+    # a library track (or a mood with music_start) plays so that its music_start lands on the bed's first cut
+    beds = edl.music_beds()
     for k, bed in enumerate(beds):
-        path = AUDIO_DIR / MUSIC[bed["mood"]]
+        path = edl.music_path(bed["mood"])
+        track = bed.pop("track", None)
         start = max(0.0, bed["start"] - (0.4 if k else 0))
-        dur = min(bed["end"] - start + (0.4 if k + 1 < len(beds) else 0), media_duration(path) - 0.1)
-        cid = run("timeline.place", {"item": imp(path), "track": "A1" if k % 2 == 0 else "A2", "seconds": start, "insert": False, "video": False,
-                                     "duration": {"seconds": dur}})["clips"][0]
+        length = media_duration(path) - 0.1
+        dur = bed["end"] - start + (0.4 if k + 1 < len(beds) else 0)
+        src = 0.0
+        if bed["music_start"] is not None:
+            src = max(0.0, bed["music_start"] - (bed["start"] - start))
+            if src + dur > length:  # not enough track after the drop: start earlier, by whole beats if known
+                need = src + dur - length
+                beats = (track or {}).get("beats") or []
+                period = (60.0 / track["bpm"]) if track and track.get("bpm") else 0
+                if period:
+                    need = math.ceil(need / period) * period
+                src = max(0.0, src - need)
+                bed["shifted_seconds"] = round(need, 3) if src else None
+                if beats:
+                    bed["on_beat"] = any(abs(b - (src + bed["start"] - start)) < 0.03 for b in beats)
+        bed["source_in"] = round(src, 3)
+        dur = min(dur, length - src)
+        place = {"item": imp(path), "track": "A1" if k % 2 == 0 else "A2", "seconds": start, "insert": False, "video": False,
+                 "duration": {"seconds": dur}}
+        if src > 0:
+            place["sourceIn"] = {"seconds": src}
+        cid = run("timeline.place", place)["clips"][0]
         run("clip.audioGain", {"clips": [cid], "mode": "set", "db": float(bed["db"])})
         for edge in ("in", "out"):
             try:
