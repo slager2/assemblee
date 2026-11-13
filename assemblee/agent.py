@@ -387,7 +387,7 @@ class Agent:
                 {"role": "user", "content": f"ЗАДАЧА:\n{self.task}\n\nМАТЕРИАЛЫ:\n{self.briefs_text}\n\nРАСКАДРОВКА:\n{json.dumps(self.storyboard, ensure_ascii=False)}\n\n"
                                             f"КАРТИНКИ (id | что | настроение):\n{self.assets_text}\n\n"
                                             + (f"СЛОВАРЬ ПРИЁМОВ (можно использовать любые, подбирай под настроение секции):\n{vocab.prompt_section('rich', with_params=False)}\n"
-                                               "Для картинок можно задавать grade (цвет числами), camera (движение камеры с easing), effects как {id, amount}; "
+                                               "Для картинок можно задавать grade (цвет числами), camera (движение камеры с easing), effects как {id, amount 0..100 — сила в процентах}; "
                                                "для карточек text_anim.\n\n" if self.mode == "rich" else "")
                                             + (ideas_mod.ideas_prompt(n=8, seed=self.seed + k) + "\n\n" if self.ideas_on else "")
                                             + f"Сейчас собери ТОЛЬКО секцию «{sec.name}» (до неё: {prev}, после: {nxt}). Цель: {sec.goal}. "

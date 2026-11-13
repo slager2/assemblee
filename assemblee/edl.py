@@ -291,7 +291,8 @@ class EDL:
                     row["caption"] = s.caption.text[:60]
                     row["caption_style"] = s.caption.style
                 if s.effects:
-                    row["effects"] = s.effects
+                    row["effects"] = [({"id": e["id"], **({"amount": e["amount"]} if "amount" in e else {})} if isinstance(e, dict) else e)
+                                      for e in s.effects]  # the form the model writes, not engine parameters
             else:
                 row["card_style"] = s.card_style
                 if s.text_anim != "none":
