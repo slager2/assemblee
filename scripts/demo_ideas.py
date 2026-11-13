@@ -44,6 +44,12 @@ PICKS = {
     "movie_trailer": (["server-beast/dragon-adventures-1", "server-beast/dragon-adventures-2"],
                       ["В мире, где драконы правят...", "...один игрок решил их приручить", "SERVER BEAST"], [None, None, "скоро"]),
     "glitch_reveal": (["last-online/just-act-natural"], [None, "СИГНАЛ ВОССТАНОВЛЕН"], None),
+    "horror_strobe": (["last-online/backrooms", "spider/01-mother"], ["Ты слышал шаги?", None, "ОНО ЗДЕСЬ"], None),
+    "sketch_to_colour": (["server-beast/dragon-adventures-2"], ["Это был просто набросок", "Теперь в это играют тысячи"], None),
+    "portal_twist": (["last-online/classic-2", "server-beast/slime-rancher2-1"], ["Закрой глаза...", "Ты в другой игре"], None),
+    "single_colour_accent": (["spider/04-lava-3", "spider/04-lava-4"], ["Видишь красное? Не наступай", None], None),
+    "dream_float": (["server-beast/grow-a-garden-2", "server-beast/slime-rancher2-2"], [None, "Представь свой сад", None], [None, "", None]),
+    "calm_then_chaos": (["server-beast/grow-a-garden-1", "spider/04-lava-1", "spider/05-evo-3"], ["Обычный день на сервере", None, None, "Никто не ожидал"], None),
     "tilted_cards": (["server-beast/spore-1", "server-beast/grow-a-garden-1"], ["Spore — эволюция", "Grow a Garden"], None),
 }
 
