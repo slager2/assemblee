@@ -271,7 +271,7 @@ def score(r):
 TABLE = [  # (column, title, format, better)
     ("score", "score (0–100)", "{:.1f}", "↑"),
     ("exported", "exported", "{:.2f}", "↑"),
-    ("duration_err", "|duration − target| / target", "{:.1%}", "↓"),
+    ("duration_err", "duration error, abs % of target", "{:.1%}", "↓"),
     ("shots", "shots", "{:.1f}", ""),
     ("avg_shot_s", "avg shot, s", "{:.2f}", ""),
     ("min_shot_s", "min shot, s", "{:.2f}", ""),
