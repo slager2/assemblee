@@ -24,7 +24,9 @@ def main(argv=None):
     sub = ap.add_subparsers(dest="cmd", required=True)
     r = sub.add_parser("run", help="edit a video")
     r.add_argument("--task", required=True, help="what to make (text or @file)")
-    r.add_argument("--assets", required=True, type=Path)
+    r.add_argument("--assets", type=Path, help="folder of pictures (with --fetch: where downloaded pictures go)")
+    r.add_argument("--fetch", default=None, help="search and download licensed pictures for this text before editing")
+    r.add_argument("--vocab", choices=["strict", "rich"], default="strict", help="strict: small menus; rich: every engine transition/effect, grade, camera, text animation")
     r.add_argument("--brief", action="append", default=[], type=Path, help="markdown brief/GDD, repeatable")
     r.add_argument("--seconds", type=float, default=60)
     r.add_argument("--slots", type=int, default=2, help="parallel requests (match llama-server --parallel)")
@@ -47,13 +49,18 @@ def main(argv=None):
     run_id = time.strftime("%Y%m%d-%H%M%S") + "-" + slug(task)
     run_dir = RUNS / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
+    if a.assets is None:
+        if not a.fetch:
+            sys.exit("--assets is required unless --fetch is given")
+        a.assets = run_dir / "assets"
     (run_dir / "task.json").write_text(json.dumps({"run_id": run_id, "task": task, "assets_dir": str(a.assets), "briefs": [str(b) for b in a.brief],
+                                                    "vocab": a.vocab, "fetch": a.fetch,
                                                     "model": llm.model_name(), "seconds": a.seconds, "slots": a.slots, "created_at": time.time()},
                                                    ensure_ascii=False, indent=1))
     print("run:", run_dir, flush=True)
     from .agent import Agent
     summary = Agent(task, a.assets, a.brief, run_dir, seconds=a.seconds, slots=a.slots, llm=llm, max_polish_turns=a.polish_turns,
-                    review_rounds=a.review_rounds, output_name=a.name).run()
+                    review_rounds=a.review_rounds, output_name=a.name, mode=a.vocab, fetch=a.fetch).run()
     print(json.dumps({k: v for k, v in summary.items() if k != "edl"}, ensure_ascii=False, indent=1))
 
 
