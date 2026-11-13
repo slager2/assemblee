@@ -431,8 +431,9 @@ class Agent:
                                             f"КАРТИНКИ (id | что | настроение):\n{self.assets_text}\n\n"
                                             + (f"СЛОВАРЬ ПРИЁМОВ (можно использовать любые, подбирай под настроение секции):\n{vocab.prompt_section('rich', with_params=False)}\n"
                                                "Для картинок можно задавать grade (цвет числами), camera (движение камеры с easing), effects как {id, amount 0..100 — сила в процентах}; "
-                                               "для карточек text_anim.\n\n" if self.mode == "rich" else "")
-                                            + (ideas_mod.ideas_prompt(n=8, seed=self.seed + k) + "\n\n" if self.ideas_on else "")
+                                               "для карточек text_anim.\n\n" if self.mode == "rich" else "")},
+                # second message: everything that differs per section, so the shared first message stays cache-reusable
+                {"role": "user", "content": (ideas_mod.ideas_prompt(n=8, seed=self.seed + k) + "\n\n" if self.ideas_on else "")
                                             + f"Сейчас собери ТОЛЬКО секцию «{sec.name}» (до неё: {prev}, после: {nxt}). Цель: {sec.goal}. "
                                             f"Визуальный стиль: {getattr(sec, 'visual_style', '')}. Главная мысль, которая должна прозвучать в подписи или карточке: «{getattr(sec, 'key_message', '')}». Длительность секции около {sec.target_seconds} с"
                                             + (f", примерно {sec.shots_hint} кадров по ~{round(sec.target_seconds / max(1, sec.shots_hint), 1)} с" if getattr(sec, "shots_hint", 0) else "")
