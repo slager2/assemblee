@@ -177,7 +177,7 @@ def render_card(title, subtitle, style, seconds, on_call=None, text_anim="none")
         call("save_project", {"path": str(proj)})
     finally:
         ec.close()
-    r = subprocess.run([str(EFFECTCRAFT_CLI), "--project", str(proj), "render", "--comp", "Card", "--out", str(out), "--format", "h264"], capture_output=True, text=True)
+    r = subprocess.run([str(EFFECTCRAFT_CLI), "--project", str(proj), "render", "--comp", "Card", "--out", str(out), "--format", "h264"], capture_output=True, text=True, timeout=600)
     if r.returncode != 0 or not out.exists():
         raise RuntimeError(f"EffectCraft render failed: {r.stderr[-300:]}")
     return out
