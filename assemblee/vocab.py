@@ -31,6 +31,9 @@ EASINGS = ["linear", "ease_in", "ease_out", "ease_in_out", "punch"]
 CAMERA = {"scale": (100, 200), "xy": (0.0, 1.0)}
 SPEED = (25, 300)  # percent, animated/video pictures only
 MAX_EFFECTS = {"strict": 2, "rich": 3}
+# measured render cost per frame (FilmCraft, 1080x1920, CPU): glint 1.3-1.5 s, volumetric rays + glow 0.8 s, most others <= 0.3 s
+HEAVY_EFFECTS = {"glint", "volumetric_rays", "wonder_glow", "bokeh_blur", "lens_flare"}
+MAX_HEAVY_SHOTS = 3  # per video: heavier edits export many minutes slower
 TEXT_ANIMS = {  # implemented in cards.py with EffectCraft text animators
     "none": "the card style's own entrance",
     "typewriter": "letters appear one by one, like typing",
@@ -356,7 +359,8 @@ def prompt_section(mode="rich", with_params=True):
         lines.append(f"[{cat}]")
         for r in rows:
             p = _short_params(r) if with_params else ""
-            lines.append(f"- {r['id']}: {r['desc']}" + (f" ({p})" if p else ""))
+            lines.append(f"- {r['id']}: {r['desc']}" + (f" ({p})" if p else "") + (" [тяжёлый]" if r["id"] in HEAVY_EFFECTS else ""))
+    lines.append(f"[тяжёлый] — медленно рендерится: не больше {MAX_HEAVY_SHOTS} кадров с такими эффектами на ролик.")
     lines.append("ЦВЕТ (grade): " + ", ".join(f"{k} {a:g}..{b:g}" for k, (a, b) in GRADE.items())
                  + "; creative_look " + "|".join(LUMETRI_LOOKS) + " + look_intensity 0..150; shadow_tint/highlight_tint #rrggbb")
     lines.append("КАМЕРА (camera): start_scale/end_scale 100..200, start_xy/end_xy [x,y] 0..1 — центр кадра на картинке, easing " + "|".join(EASINGS))
