@@ -174,7 +174,9 @@ def analyse(run_dir: Path, rec: dict, tasks: dict, with_media=True):
     dry = bool(meta.get("dry", rec.get("dry", task_json.get("model") == "fake-llm")))
     task_id = meta.get("task_id") or rec.get("task_id") or guess_task(task_json.get("task", ""), tasks)
     task = tasks.get(task_id, {})
-    label = rec.get("label") or meta.get("label") or task_json.get("vocab") or task_json.get("mode") or ("dry_run.py" if dry else "strict")
+    kw = meta.get("agent_kwargs") or {}
+    mode = task_json.get("vocab") or task_json.get("mode") or start.get("vocab") or start.get("mode") or kw.get("vocab") or kw.get("mode") or "strict"
+    label = rec.get("label") or meta.get("label") or (("dry_run.py" if mode == "strict" else mode + " (dry_run)") if dry else mode)
     target = float(task_json.get("seconds") or start.get("seconds") or task.get("seconds") or 60)
 
     shots = summary["edl"]["shots"]
@@ -190,7 +192,7 @@ def analyse(run_dir: Path, rec: dict, tasks: dict, with_media=True):
         "var_motion": ratio_distinct([s["motion"] for s in pics], len(MOTIONS)),
         "var_look": ratio_distinct([s["look"] for s in pics], len(LOOKS)),
         "var_transition": ratio_distinct([s["transition_out"] for s in shots[:-1] if s["transition_out"] != "cut"], len(TRANSITIONS) - 1),
-        "var_effect": ratio_distinct([e for s in pics for e in s.get("effects", [])], len(EFFECTS)),
+        "var_effect": ratio_distinct([e if isinstance(e, str) else (e or {}).get("id") for s in pics for e in s.get("effects", [])], len(EFFECTS)),
         "var_caption_style": ratio_distinct([s["caption"]["style"] for s in pics if s.get("caption")], len(CAPTION_STYLES)),
     }
 
@@ -233,6 +235,9 @@ def analyse(run_dir: Path, rec: dict, tasks: dict, with_media=True):
         "repeated_assets": repeats, "unique_assets": 1 - repeats / len(assets) if assets else None,
         **var, "variety": statistics.mean(var.values()),
         "text_share": len(text_shots) / len(shots) if shots else 0,
+        # rich-vocabulary usage (0 in strict mode): shots that use grade / camera / text_anim / effect or transition params
+        "rich_use": sum(1 for s in shots if s.get("grade") or s.get("camera") or s.get("text_anim", "none") != "none" or s.get("transition_params")
+                        or any(isinstance(e, dict) and e.get("params") for e in s.get("effects", []))) / len(shots) if shots else 0,
         "must_mention": coverage, "must_missing": "; ".join((m if isinstance(m, str) else m[0]) for m, c in zip(must, covered) if not c),
         "readable_first": rate(by_round[rounds[0]]) if rounds else None, "readable_last": rate(last),
         "vision_match_last": statistics.mean(matches) if matches else None, "review_rounds": len(rounds),
@@ -283,6 +288,7 @@ TABLE = [  # (column, title, format, better)
     ("var_effect", "variety: effect", "{:.2f}", "↑"),
     ("var_caption_style", "variety: caption style", "{:.2f}", "↑"),
     ("text_share", "shots with text", "{:.0%}", ""),
+    ("rich_use", "shots using rich fields", "{:.0%}", ""),
     ("must_mention", "must_mention coverage", "{:.0%}", "↑"),
     ("readable_first", "vision readable, 1st round", "{:.0%}", "↑"),
     ("readable_last", "vision readable, last round", "{:.0%}", "↑"),
