@@ -308,7 +308,7 @@ def main() -> None:
     runs = Path(args.runs)
     runs.mkdir(parents=True, exist_ok=True)
     print(f"assemblee monitor: http://127.0.0.1:{args.port}/  (runs: {runs.resolve()})")
-    web.run_app(make_app(runs), host=args.host, port=args.port, print=None)
+    web.run_app(make_app(runs), host=args.host, port=args.port, print=None, shutdown_timeout=1.0)
 
 
 if __name__ == "__main__":
