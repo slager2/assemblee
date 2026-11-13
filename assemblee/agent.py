@@ -75,6 +75,15 @@ class Agent:
                 self.ev.emit("warning", message=f"{phase}: {e} (attempt {attempt + 1})")
         raise LLMError(f"{phase}: model failed {retries + 1} times")
 
+    def step(self, name, args, result, ok=True):
+        """A harness step shown in the feed like a tool call: tool_call + tool_result with the same id."""
+        self._step_n = getattr(self, "_step_n", 0) + 1
+        sid = f"h{self._step_n}-{name}"
+        self.ev.emit("tool_call", id=sid, name=name, args=args)
+        if not ok and isinstance(result, dict) and "error" not in result:
+            result = {**result, "error": result.get("message", "проверка не пройдена")}
+        self.ev.emit("tool_result", id=sid, name=name, ok=ok, result=result, seconds=0)
+
     # ---------- timeline events ----------
     def thumb_for(self, shot):
         try:
@@ -122,7 +131,7 @@ class Agent:
         self.briefs_text = "\n\n".join(f"### {b.stem}\n{brief_summary(b)}" for b in self.briefs if b.exists())
 
         def described(key, entry):
-            self.ev.emit("tool_result", id=f"catalog-{key}", name="describe_asset", ok=True, result={"asset": key, "what": entry["what"], "mood": entry["mood"]}, seconds=0)
+            self.step("describe_asset", {"asset": key}, {"what": entry["what"], "mood": entry["mood"]})
 
         cat = assets_mod.load_or_build(self.assets_dir, llm=self.llm, on_item=described)
         if not cat:
@@ -130,7 +139,7 @@ class Agent:
         self.edl = EDL(cat)
         self._thumbs = {}
         self.assets_text = assets_mod.compact_list(cat)
-        self.ev.emit("tool_result", id="catalog", name="catalog", ok=True, result={"assets": len(cat), "briefs": [b.name for b in self.briefs]}, seconds=0)
+        self.step("catalog", {"dir": str(self.assets_dir)}, {"assets": len(cat), "briefs": [b.name for b in self.briefs]})
 
     def plan(self):
         self.ev.emit("phase", name="plan", note="раскадровка: секции, цели, музыка")
@@ -163,7 +172,7 @@ class Agent:
                            "sections": [{"name": s.name, "goal": s.goal, "target_seconds": s.target_seconds, "music": s.music,
                                          "visual_style": getattr(s, "visual_style", "")} for s in self.edl.sections]}
         (self.run_dir / "storyboard.json").write_text(json.dumps(self.storyboard, ensure_ascii=False, indent=1))
-        self.ev.emit("tool_result", id="storyboard", name="storyboard", ok=True, result=self.storyboard, seconds=0)
+        self.step("storyboard", {"seconds": self.seconds}, self.storyboard)
         self.emit_timeline()
 
     def shot_schema(self):
@@ -237,8 +246,8 @@ class Agent:
                     s.seconds = round(min(lim[1], max(lim[0], s.seconds * f)), 2)
                 warnings.append(f"section {sec.name}: {round(total, 1)}s scaled toward target {sec.target_seconds}s")
             self.edl.shots.extend(shots)
-            self.ev.emit("tool_result", id=f"build-{sec.name}", name="build_section", ok=True,
-                         result={"section": sec.name, "shots": len(shots), "seconds": round(sum(s.seconds for s in shots), 1), "warnings": warnings}, seconds=0)
+            self.step("build_section", {"section": sec.name, "target_seconds": sec.target_seconds},
+                      {"shots": len(shots), "seconds": round(sum(s.seconds for s in shots), 1), "warnings": warnings})
             self.refresh_thumbs()
             self.emit_timeline()
 
@@ -322,10 +331,10 @@ class Agent:
                 verdicts = list(pool.map(judge, frames))
             bad = [(i, v) for i, v in verdicts if not v.get("text_readable", True)]
             if not bad:
-                self.ev.emit("tool_result", id=f"review-{rnd}", name="review", ok=True, result={"checked": len(verdicts), "unreadable": 0}, seconds=0)
+                self.step("review", {"round": rnd + 1}, {"checked": len(verdicts), "unreadable": 0})
                 return
-            self.ev.emit("tool_result", id=f"review-{rnd}", name="review", ok=False,
-                         result={"checked": len(verdicts), "unreadable": [i + 1 for i, _ in bad]}, seconds=0)
+            self.step("review", {"round": rnd + 1}, {"checked": len(verdicts), "unreadable": [i + 1 for i, _ in bad],
+                                                     "error": f"текст плохо читается на кадрах {[i + 1 for i, _ in bad]}"}, ok=False)
             handler = PolishTools(self.edl, self.changed)
             listing = "\n".join(f"кадр {i + 1}: {self.edl.shots[i].label()} — подпись «{self.edl.shots[i].caption.text if self.edl.shots[i].caption else self.edl.shots[i].title}», "
                                 f"эффекты {self.edl.shots[i].effects}, look {self.edl.shots[i].look}; зрение увидело: {v.get('seen', '')}" for i, v in bad)
