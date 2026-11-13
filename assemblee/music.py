@@ -102,7 +102,8 @@ def _ccmixter(query, n, min_s=MIN_SECONDS, max_s=MAX_SECONDS):
     d = []
     for how in ("all", "any"):  # every word first, any word as a fallback
         params = {"f": "json", "search": query, "search_type": how, "sort": "rank", "limit": min(40, max(5, n * 2))}
-        d = _get_json(CCMIXTER + "?" + urllib.parse.urlencode(params), timeout=25)
+        raw, _ = _get(CCMIXTER + "?" + urllib.parse.urlencode(params), timeout=25)
+        d = json.loads(raw.decode("utf-8", errors="replace"))  # some uploads carry cp1252 bytes
         if isinstance(d, list) and len(d) >= 3 or len(query.split()) < 2:
             break
     out = []
@@ -253,7 +254,10 @@ def download_music(results, dest_dir, max_tracks=6, on_event=None, timeout=60):
         try:
             if "wikimedia.org/" in r["audio_url"]:
                 with _wikimedia_lock:
-                    data, hdr = _get(r["audio_url"], timeout=timeout, retries=1, max_bytes=MAX_BYTES, accept="audio/*")
+                    # Commons throttles clients whose User-Agent has no contact address (robot policy,
+                    # HTTP 429 + Retry-After: 10 after a couple of files); we send none on purpose, so wait it out
+                    data, hdr = _get(r["audio_url"], timeout=timeout, retries=3, max_bytes=MAX_BYTES, accept="audio/*")
+                    time.sleep(3.0)
             else:
                 data, hdr = _get(r["audio_url"], timeout=timeout, retries=2, max_bytes=MAX_BYTES, accept="audio/*")
             ctype = (hdr.get("Content-Type") or "").split(";")[0].strip().lower()
@@ -261,7 +265,8 @@ def download_music(results, dest_dir, max_tracks=6, on_event=None, timeout=60):
                 raise FetchError(f"not audio: {ctype}")
             raw = tmpdir / "source"
             raw.write_bytes(data)
-            base = slugify(f"{r['artist']} {r['title']}" if r.get("artist") else r["title"], 48)
+            artist = r.get("artist") or ""
+            base = slugify(r["title"] if not artist or slugify(r["title"]).startswith(slugify(artist)) else f"{artist} {r['title']}", 48)
             slug, k = base, 2
             while f"music/{slug}" in credits or (dest / "music" / f"{slug}.wav").exists():
                 slug, k = f"{base}-{k}", k + 1
