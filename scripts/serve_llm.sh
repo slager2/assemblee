@@ -36,9 +36,9 @@ profile_args() {
            -b 2048 -ub 512 -t 6 --poll 0
       ;;
     planner)
-      # 9B text-only planner, fully on GPU.
+      # 9B text-only planner, fully on GPU (~5.2 GB VRAM at 32k q8_0).
       echo -m "$MODELS_DIR/Qwen3.5-9B-IQ4_XS.gguf" \
-           -c 16384 -ctk q8_0 -ctv q8_0 -fa on \
+           -c 32768 -ctk q8_0 -ctv q8_0 -fa on \
            --parallel 1 --cache-ram 512 -t 6 --poll 0
       ;;
     *) echo "unknown profile: $1 (agent|planner)" >&2; exit 2 ;;
