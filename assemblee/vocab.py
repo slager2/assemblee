@@ -151,16 +151,20 @@ def engine_value(row, pid, value):
 
 
 def effect_engine_params(fx):
-    """[(param, value | [from, to])] for a resolved rich effect, with engine-side companions filled in."""
+    """[(param, value | [from, to], animated)] for a resolved rich effect, with engine-side companions filled in."""
     row = RICH_EFFECTS[fx["id"]]
-    out = [(p, engine_value(row, p, v) if not (isinstance(v, list) and len(v) == 2 and row["params"].get(p, {}).get("type") == "number") else v)
-           for p, v in fx["params"].items()]
+    out = []
+    for p, v in fx["params"].items():
+        spec = row["params"].get(p, {})
+        animated = spec.get("type") == "number" and isinstance(v, list)
+        out.append((p, v if animated else engine_value(row, p, v), animated))
+    vals = {p: (v, a) for p, v, a in out}
     if fx["id"] == "mosaic":  # square blocks on a vertical frame
-        hz = dict(out).get("horizontal", 60)
-        vz = [round(x * H / W) for x in hz] if isinstance(hz, list) else round(hz * H / W)
-        out.append(("vertical", vz))
+        hz, a = vals.get("horizontal", (60, False))
+        out.append(("vertical", [round(x * H / W) for x in hz] if a else round(hz * H / W), a))
     if fx["id"] == "clone":  # N x N tiles keep the 9:16 aspect, so the frame stays covered
-        out.append(("rows", dict(out).get("columns", 2)))
+        cols, a = vals.get("columns", (2, False))
+        out.append(("rows", cols, a))
     return out
 
 

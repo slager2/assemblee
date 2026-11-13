@@ -8,6 +8,7 @@ from pathlib import Path
 
 from .cards import render_card
 from .config import AUDIO_DIR, FILMCRAFT_CLI, FPS, H, TICKS, W
+from . import vocab
 from .edl import EDL, EFFECTS, LOOKS, MUSIC, SFX
 from .mcp import MCP, MCPError
 from .media import animated_to_vertical_mp4, caption_png, fit_vertical, media_duration
@@ -70,20 +71,44 @@ def compile_edl(edl: EDL, on_call=None, on_progress=None) -> Compiled:
         for t, v in pairs:
             run("effects.setParam", {"clip": clip, "effect": effect, "param": param, "value": v, "time": int(t * TICKS), "keyframe": True})
 
+    eases = []  # (clip, effect, param, sequence ticks, interpolation): set once all clips exist
+
+    def set_param(clip, idx, p, v, s, e, what, animate=False):
+        try:
+            if animate:
+                kf(clip, idx, p, [(s, v[0]), (e, v[1])])  # animated [from, to] over the shot
+                eases.extend([(clip, idx, p, int(s * TICKS), "easeOut"), (clip, idx, p, int(e * TICKS), "easeIn")])
+            else:
+                run("effects.setParam", {"clip": clip, "effect": idx, "param": p, "value": v})
+        except MCPError as err:
+            warnings.append(f"{what}.{p}={v}: {str(err)[:120]}")
+
+    warnings = []
     run("file.newSequence", {"name": "assemblee", "width": W, "height": H, "fps": FPS, "video": 3, "audio": 4})
     times = edl.times()
     clip_ids = []
     for i, (shot, (s, e)) in enumerate(zip(edl.shots, times), 1):
         on_progress and on_progress(f"shot {i}/{len(edl.shots)}")
         if shot.kind == "card":
-            media = render_card(shot.title, shot.subtitle, shot.card_style, shot.seconds, on_call=lambda c, p: note("effectcraft", c, p))
+            media = render_card(shot.title, shot.subtitle, shot.card_style, shot.seconds, on_call=lambda c, p: note("effectcraft", c, p), text_anim=shot.text_anim)
         else:
             media = picture_media(edl.catalog[shot.asset])
-        cid = run("timeline.place", {"item": imp(media), "track": "V1", "seconds": s, "insert": False, "duration": {"seconds": shot.seconds}, "audio": False})["clips"][0]
+        speed = shot.speed if shot.kind == "picture" else 100.0
+        src = shot.seconds * speed / 100  # source seconds, so the sped-up/slowed clip fills exactly shot.seconds
+        cid = run("timeline.place", {"item": imp(media), "track": "V1", "seconds": s, "insert": False, "duration": {"seconds": src}, "audio": False})["clips"][0]
         clip_ids.append(cid)
+        if speed != 100:
+            run("clip.speedDuration", {"clips": [cid], "speed": speed, "ripple": False, "interpolation": "frameBlending"})
         if shot.kind == "picture":
             m = shot.motion
-            if m == "zoom_in":
+            if shot.camera:
+                keys, interp = vocab.camera_keys(shot.camera, s, e)
+                kf(cid, "motion", "scale", [(t, sc) for t, sc, _ in keys])
+                kf(cid, "motion", "position", [(t, xy) for t, _, xy in keys])
+                for (t, _, _), how in zip(keys, interp):
+                    if how != "linear":
+                        eases.extend([(cid, "motion", "scale", int(t * TICKS), how), (cid, "motion", "position", int(t * TICKS), how)])
+            elif m == "zoom_in":
                 kf(cid, "motion", "scale", [(s, 100), (e, 112)])
             elif m == "zoom_out":
                 kf(cid, "motion", "scale", [(s, 114), (e, 101)])
@@ -93,18 +118,20 @@ def compile_edl(edl: EDL, on_call=None, on_progress=None) -> Compiled:
                 run("effects.setParam", {"clip": cid, "effect": "motion", "param": "scale", "value": 116})
                 dx = 70 if m == "pan_left" else -70
                 kf(cid, "motion", "position", [(s, [W / 2 + dx, H / 2]), (e, [W / 2 - dx, H / 2])])
-            if LOOKS.get(shot.look):
+            grade = {**LOOKS.get(shot.look, {}), **shot.grade}
+            if grade:
                 idx = run("effects.apply", {"clips": [cid], "effect": "lumetri"})["applied"][0]["index"]
-                for p, v in LOOKS[shot.look].items():
-                    run("effects.setParam", {"clip": cid, "effect": idx, "param": p, "value": v})
-            for name in shot.effects:
-                eid, params = EFFECTS[name]
+                for p, v in vocab.grade_engine_params(grade):
+                    set_param(cid, idx, p, v, s, e, f"shot {i} grade")
+            for fx in shot.effects:
+                if isinstance(fx, str):  # strict preset
+                    eid, params = EFFECTS[fx]
+                    params = [(p, v, False) for p, v in params.items()]
+                else:
+                    eid, params = fx["id"], vocab.effect_engine_params(fx)
                 idx = run("effects.apply", {"clips": [cid], "effect": eid})["applied"][0]["index"]
-                for p, v in params.items():
-                    try:
-                        run("effects.setParam", {"clip": cid, "effect": idx, "param": p, "value": v})
-                    except MCPError:
-                        pass
+                for p, v, animate in params:
+                    set_param(cid, idx, p, v, s, e, f"shot {i} {eid}", animate)
             if shot.caption:
                 cap = caption_png(shot.caption.text, shot.caption.style, shot.caption.position)
                 ccid = run("timeline.place", {"item": imp(cap), "track": "V2", "seconds": s, "insert": False, "duration": {"seconds": shot.seconds}})["clips"][0]
@@ -114,12 +141,28 @@ def compile_edl(edl: EDL, on_call=None, on_progress=None) -> Compiled:
     for i, shot in enumerate(edl.shots[:-1]):
         if shot.transition_out != "cut":
             frames = max(4, min(36, int(shot.transition_seconds * FPS)))
+            tparams = vocab.transition_engine_params(shot.transition_out, shot.transition_params)
             for align in ("center", "start", "end"):
                 try:
-                    run("sequence.applyVideoTransition", {"clip": clip_ids[i + 1], "effect": shot.transition_out, "frames": frames, "edge": "in", "align": align})
+                    run("sequence.applyVideoTransition", {"clip": clip_ids[i + 1], "effect": shot.transition_out, "frames": frames, "edge": "in", "align": align,
+                                                          **({"params": tparams} if tparams else {})})
                     break
-                except MCPError:
+                except MCPError as err:
+                    if align == "end":
+                        warnings.append(f"transition {shot.transition_out} after shot {i + 1}: {str(err)[:120]}")
                     continue
+    # keyframe easing: FilmCraft addresses keyframes by media time, so read where each clip really sits
+    if eases:
+        layout = {it["clip"]: it for it in fc.run("sequence.inspect", {})["video"][0]["items"]}
+        for clip, effect, param, t, how in eases:
+            it = layout.get(clip)
+            if not it:
+                continue
+            media_t = int(it["sourceIn"] + (t - it["start"]) * it.get("speed", 1.0))
+            try:
+                run("effects.setInterpolation", {"clip": clip, "effect": effect, "param": param, "mediaTime": media_t, "interpolation": how})
+            except MCPError as err:
+                warnings.append(f"easing {param}@{t / TICKS:.2f}s: {str(err)[:100]}")
     # music: merge consecutive sections with the same mood into one bed
     beds = []
     for sec in edl.sections:
@@ -151,5 +194,5 @@ def compile_edl(edl: EDL, on_call=None, on_progress=None) -> Compiled:
         d = media_duration(path)
         t = times[n][0] if fx.get("at", "start") == "start" else max(0.0, times[n][1] - d / 2)
         run("timeline.place", {"item": imp(path), "track": "A3" if k % 2 == 0 else "A4", "seconds": t, "insert": False, "video": False, "duration": {"seconds": d}})
-    stats = {"calls": calls, "seconds": round(time.time() - t0, 1), "beds": beds}
+    stats = {"calls": calls, "seconds": round(time.time() - t0, 1), "beds": beds, "warnings": warnings}
     return Compiled(fc, clip_ids, times, stats)
