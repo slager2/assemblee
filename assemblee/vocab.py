@@ -123,9 +123,12 @@ def _params(row, raw_params, amount, what, warnings):
     out = dict(row.get("preset") or {})
     if amount is not None and row.get("main"):
         try:
-            if 1 < float(amount) <= 100:  # models often answer in percent: 32 means 0.32, not "clamp to the maximum"
-                warnings.append(f"{what}.amount: {amount} read as percent, used {round(float(amount) / 100, 3)}")
-                amount = float(amount) / 100
+            v = float(amount)
+            if isinstance(amount, int) or v > 1:  # the schema asks for an integer percent 0..100 (grammar-enforced)
+                if v > 100:
+                    warnings.append(f"{what}.amount: {amount} is not a percent 0..100, used 50")
+                    v = 50
+                amount = max(0.0, v) / 100
         except (TypeError, ValueError):
             pass
         a = _num(amount, (0, 1), 0.5, f"{what}.amount", warnings)
@@ -194,7 +197,15 @@ def resolve_effect(raw, mode, strict_names, warnings):
     eid = _pick(eid, RICH_EFFECTS, None, "effect", warnings)
     if not eid:
         return None
-    return {"id": eid, "params": _params(RICH_EFFECTS[eid], raw.get("params"), raw.get("amount"), f"effect {eid}", warnings)}
+    params = _params(RICH_EFFECTS[eid], raw.get("params"), raw.get("amount"), f"effect {eid}", warnings)
+    out = {"id": eid, "params": params}
+    if raw.get("amount") is not None:  # kept for the edit list: the model sees the effect the way it wrote it
+        try:
+            a = float(raw["amount"])
+            out["amount"] = int(round(a if (isinstance(raw["amount"], int) or a > 1) and a <= 100 else (a * 100 if a <= 1 else 50)))
+        except (TypeError, ValueError):
+            pass
+    return out
 
 
 # ------------------------------------------------------------------ transitions
@@ -334,13 +345,13 @@ def prompt_section(mode="rich", with_params=True):
     if mode != "rich":
         return ("Движения: " + ", ".join(MOTIONS) + "\nЛуки: " + ", ".join(LOOKS) + "\nЭффекты: " + ", ".join(EFFECTS)
                 + "\nПереходы: " + ", ".join(TRANSITIONS))
-    lines = ["ПЕРЕХОДЫ (transition_out; transition_params: amount 0..1 и/или параметры):"]
+    lines = ["ПЕРЕХОДЫ (transition_out; transition_params: amount 0..100 и/или параметры):"]
     for cat, rows in _group(RICH_TRANSITIONS.values()).items():
         lines.append(f"[{cat}]")
         for r in rows:
             p = _short_params(r) if with_params else ""
             lines.append(f"- {r['id']}: {r['desc']}" + (f" ({p})" if p else ""))
-    lines.append("ЭФФЕКТЫ (effects: до 3 штук, {id, amount 0..1, params}; ~ = можно анимировать [от, до]):")
+    lines.append("ЭФФЕКТЫ (effects: до 3 штук, {id, amount 0..100 (сила в процентах), params}; ~ = можно анимировать [от, до]):")
     for cat, rows in _group(RICH_EFFECTS.values()).items():
         lines.append(f"[{cat}]")
         for r in rows:
@@ -390,7 +401,7 @@ def schema_fragments(mode="strict", effect_params=True):
                             "transition_out": {"type": "string", "enum": TRANSITIONS}},
                 "card": {"card_style": {"type": "string", "enum": CARD_STYLES}, "transition_out": {"type": "string", "enum": TRANSITIONS}}}
     tids = ["cut"] + list(RICH_TRANSITIONS)
-    amount = _num_schema(0, 1)
+    amount = {"type": "integer", "minimum": 0, "maximum": 100}  # integer: llama.cpp grammars enforce integer ranges, not number ranges
     if effect_params:
         variants = []
         for r in RICH_EFFECTS.values():
