@@ -25,7 +25,7 @@ from .edl import EDL, EFFECTS, LIMITS, LOOKS, MOTIONS, MUSIC, TRANSITIONS, Secti
 from .events import EventLog
 from .llm import LLM, LLMError
 from .media import CAPTION_STYLES, POSITIONS, h, thumb
-from .tools import POLISH_TOOLS, PolishTools
+from .tools import POLISH_TOOLS, PolishTools, polish_tools
 
 SYSTEM = ("Ты опытный монтажёр коротких вертикальных роликов (Reels/Shorts/TikTok). Ты принимаешь творческие решения: "
           "структура, выбор кадров, ритм, подписи, стиль, музыка. Технику (кадрирование, анимацию, звук) делает программа. "
@@ -336,7 +336,7 @@ class Agent:
         shot = {"type": "integer", "minimum": 1, "maximum": n}
         section = {"type": "string", "enum": [x.name for x in self.edl.sections]}
         variants = []
-        for t in POLISH_TOOLS:
+        for t in polish_tools(self.mode):
             f = t["function"]
             if f["name"] == "done":
                 continue
