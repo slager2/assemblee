@@ -188,3 +188,66 @@ Descript-подобный text-based editing (монтаж правкой тра
 - Подтверждено α-UMi: разделение ролей помогает малым моделям [S13]. У нас: **9B = планировщик storyboard** (1–2 вызова на ролик, можно с частичной выгрузкой на CPU — медленно, но вызовов мало), **4B = план секций + vision**, **0.8B/2B** — классификация/теги ассетов, генерация коротких подписей **[эмпирика]**.
 - На 6 GB 9B Q4 (~5,5 GB **[оценка]**) + mmproj + 4B одновременно не поместятся → либо последовательная смена моделей (выгрузка/загрузка, несколько секунд с NVMe), либо 9B частично на CPU. Режим «router» llama-server для нескольких моделей **[не проверено в этой работе]**.
 
+---
+
+## 4. Рекомендуемая архитектура harness (решения)
+
+1. **Таймлайн принадлежит коду.** Единственный источник истины — Python-объект проекта (секции → шоты → дорожки), сериализуемый в OTIO для отладки. FilmCraft/EffectCraft получают команды только от компилятора, модель их не видит.
+2. **Пайплайн из фиксированных фаз** (машина состояний, не свободный ReAct-цикл): `ingest → index → storyboard → section plans → compile → render preview → critique → fix → final render`. В каждой фазе модель видит 1–3 инструмента.
+3. **Ingest/index без LLM**: PySceneDetect (шоты), faster-whisper large-v3-turbo с word timestamps (речь), Beat This! (биты/даунбиты музыки), ffmpeg `ebur128` (громкость), 0.8B/2B или 4B-vision даёт каждому шоту/ассету короткий тег-описание (1 вызов на ассет, контакт-лист 2×2). Результат — `index.json` с короткими ID.
+4. **Storyboard один раз**: 9B (или 4B с thinking, `--reasoning-budget` ~1500), вывод — markdown со списком секций (цель, длительность в долях, настроение, текст на экране, музыка). Затем дешёвый вызов «перелей в схему» с `json_schema` (≤ 8 секций).
+5. **План секции = один вызов 4B non-thinking с `json_schema`**: `{why, shots[≤8]: {asset_id enum, beats 1..8, motion enum, look enum, text?, transition_in enum}}`. Enum'ы `asset_id` подставлять динамически из индекса — модель не может сослаться на несуществующий файл. Секции планировать параллельно в 2 слотах.
+6. **Вся арифметика в компиляторе**: биты → секунды, подгонка суммы к длительности секции, обрезка in/out по сценам, ducking под голос (`sidechaincompress`), нормализация до -14 LUFS (`loudnorm` 2 прохода), субтитры из слов по 2–4 слова, safe-area. Правило темпа (макс. длина плана по жанру) — тоже в компиляторе.
+7. **Не полагаться на нативный tool-call парсер Qwen3.5 в llama.cpp** для критичных шагов: использовать `json_schema`-ограниченные ответы и свой диспетчер. Нативные tools — только в свободном «чат-режиме» с пользователем.
+8. **Критик двухуровневый**: (а) программные проверки (дыры, длительность, LUFS, покрытие брифа, отсутствие повторов ассета подряд); (б) VLM 4B отвечает enum'ом на узкие вопросы по контакт-листу превью (ffmpeg `tile`, 480p) и по кадрам на склейках. Не спрашивать «хорошо ли получилось?» — самооценка ненадёжна. Максимум 2 итерации исправлений на секцию, затем fallback-правило (например, заменить шот на соседний по тегу).
+9. **Исправления локальные**: критик возвращает `{section, shot, problem enum}`; перепланируется только эта секция (тот же вызов из п. 5 с подсказкой проблемы), остальной таймлайн не трогается — append-only история и стабильный префикс сохраняют кэш.
+10. **Конфиг llama-server (4B)**: `-m Qwen3.5-4B-Q4_K_M.gguf --mmproj mmproj.gguf -ngl 99 -fa on -c 32768 -np 2 --jinja --reasoning off --cache-ram 3072 --image-max-tokens 512`, KV в f16 или q8_0 (не q4_0). Для storyboard — отдельный запрос с `chat_template_kwargs: {"enable_thinking": true}` и budget. Проверять, читает ли шаблон `enable_thinking`.
+11. **Спекуляция — только после замера**: начать с `--spec-type ngram-mod` (без draft-модели); draft 0.8B для 4B, скорее всего, не окупится на 6 GB [S37]. Метрика — tokens/s на реальных section-plan запросах.
+12. **Распределение VRAM по фазам**: LLM и тяжёлые модели (Whisper на GPU, Real-ESRGAN, rembg) не держать одновременно — ingest (Whisper/Beat This!/rembg) идёт до загрузки LLM либо на CPU (faster-whisper int8 на CPU, Piper на CPU). 9B подгружать только для storyboard.
+13. **Шаблоны графики — пресеты EffectCraft** с enum `template_id` и текстовыми слотами; Remotion/Lottie — только как офлайн-генераторы оверлеев с альфой, при необходимости.
+14. **Озвучка**: Silero v5 ru (качество; некоммерческая лицензия) или Piper ru_RU (GPL, отдельный процесс). Длительность реплики измеряет инструмент и сам растягивает секцию.
+15. **Лицензии ассетов как данные**: `fetch_asset` (Openverse `license_type=commercial`, Wikimedia `extmetadata`, Freesound CC0, Pixabay) пишет `credits.json`; без записи лицензии ассет не попадает в индекс.
+16. **Журнал и eval-набор**: каждый вызов модели (промпт, схема, ответ, время) — в лог событий (`docs/events.md`), плюс 10–20 эталонных задач-брифов с программными тестами по образцу Timeline-Bench для регресс-проверки промптов и моделей. Позже из удачных логов — LoRA-fine-tune 4B под наши схемы (TinyAgent: 41 % → 83 % на 7B [S14]).
+
+---
+
+## Источники
+
+- [S1] LAVE, arXiv 2402.10294 — [arxiv.org/abs/2402.10294](https://arxiv.org/abs/2402.10294)
+- [S2] LAVE, страница проекта — [dgp.toronto.edu/~bryanw/lave](https://dgp.toronto.edu/~bryanw/lave)
+- [S3] ExpressEdit, arXiv 2403.17693 — [arxiv.org/abs/2403.17693](https://arxiv.org/abs/2403.17693)
+- [S4] Prompt-Driven Agentic Video Editing System, arXiv 2509.16811 — [arxiv.org/abs/2509.16811](https://arxiv.org/abs/2509.16811)
+- [S5] VideoAgent: All-in-One Framework, arXiv 2606.23327 — [arxiv.org/pdf/2606.23327](https://arxiv.org/pdf/2606.23327)
+- [S6] HKUDS/VideoAgent — [github.com/HKUDS/VideoAgent](https://github.com/HKUDS/VideoAgent)
+- [S7] browser-use/video-use — [github.com/browser-use/video-use](https://github.com/browser-use/video-use)
+- [S8] Timeline-Bench, arXiv 2609.35143 — [arxiv.org/html/2609.35143v1](https://arxiv.org/html/2609.35143v1)
+- [S9] MoneyPrinterTurbo — [github.com/harry0703/MoneyPrinterTurbo](https://github.com/harry0703/MoneyPrinterTurbo)
+- [S10] FFMPerative-7B — [huggingface.co/remyxai/ffmperative-7b](https://huggingface.co/remyxai/ffmperative-7b)
+- [S11] OpenTimelineIO на PyPI — [pypi.org/project/OpenTimelineIO](https://pypi.org/project/OpenTimelineIO/)
+- [S12] «How I automate 95% of my video workflow with AI coding agents» — [medium.com](https://medium.com/google-cloud/how-i-automate-95-of-my-video-workflow-with-ai-coding-agents-90dd4a87c53f)
+- [S13] Small LLMs Are Weak Tool Learners (α-UMi), arXiv 2401.07324 — [arxiv.org/abs/2401.07324](https://arxiv.org/abs/2401.07324)
+- [S14] TinyAgent, arXiv 2409.00608 — [arxiv.org/html/2409.00608v1](https://arxiv.org/html/2409.00608v1), [BAIR blog](https://bair.berkeley.edu/blog/2024/05/29/tiny-agent/)
+- [S15] Local LLMs fail at tool calling (dev.to) — [dev.to/kuroko1t/...](https://dev.to/kuroko1t/what-happens-when-local-llms-fail-at-tool-calling-testing-7-models-with-a-rust-coding-agent-cep)
+- [S16] MoviePy на PyPI — [pypi.org/project/moviepy](https://pypi.org/project/moviepy/)
+- [S17] auto-editor — [github.com/wyattblue/auto-editor](https://github.com/wyattblue/auto-editor)
+- [S18] Русский fine-tune whisper turbo (Habr) — [habr.com/ru/articles/1042574](https://habr.com/ru/articles/1042574/)
+- [S19] whisper.cpp 1.8.3 (Phoronix) — [phoronix.com](https://phoronix.com/news/whisper-cpp-1.8.3-12x-perf)
+- [S20] Beat This!, arXiv 2407.21658 — [arxiv.org/abs/2407.21658](https://arxiv.org/abs/2407.21658), [github.com/CPJKU/beat_this](https://github.com/CPJKU/beat_this)
+- [S21] Remotion License — [remotion.dev/docs/license](https://www.remotion.dev/docs/license)
+- [S22] Pixabay и Content ID (вторичный источник) — [hellothematic.com/thematic-vs-pixabay](https://hellothematic.com/thematic-vs-pixabay/)
+- [S23] Openverse API — [api.openverse.org/v1](https://api.openverse.org/v1/)
+- [S24] BRIA RMBG-2.0 — [huggingface.co/briaai/RMBG-2.0](https://huggingface.co/briaai/RMBG-2.0)
+- [S25] OHF-Voice/piper1-gpl — [github.com/OHF-Voice/piper1-gpl](https://github.com/OHF-Voice/piper1-gpl)
+- [S26] Silero models — [github.com/snakers4/silero-models](https://github.com/snakers4/silero-models)
+- [S27] Qwen3.5 карточка (зеркало) — [friendli.ai/models/Kotokin/MMV1](https://friendli.ai/models/Kotokin/MMV1); официальная — [huggingface.co/Qwen/Qwen3.5-4B](https://huggingface.co/Qwen/Qwen3.5-4B) (не открывалась)
+- [S28] llama.cpp server README — [github.com/ggml-org/llama.cpp/.../tools/server/README.md](https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md)
+- [S29] Unsloth Qwen3.5-9B-GGUF: reasoning on/off — [huggingface.co/unsloth/Qwen3.5-9B-GGUF/discussions/2](https://huggingface.co/unsloth/Qwen3.5-9B-GGUF/discussions/2)
+- [S30] llama.cpp issue #20182 (enable_thinking) — [github.com/ggml-org/llama.cpp/issues/20182](https://github.com/ggml-org/llama.cpp/issues/20182)
+- [S31] llama.cpp issue #20837 (tool calls внутри thinking) — [github.com/ggml-org/llama.cpp/issues/20837](https://github.com/ggml-org/llama.cpp/issues/20837)
+- [S32] llama.cpp issue #21158 (парсинг tool calls Qwen3.5) — [github.com/ggml-org/llama.cpp/issues/21158](https://github.com/ggml-org/llama.cpp/issues/21158)
+- [S33] llama.cpp function-calling.md — [github.com/ggml-org/llama.cpp/blob/master/docs/function-calling.md](https://github.com/ggml-org/llama.cpp/blob/master/docs/function-calling.md)
+- [S34] Let Me Speak Freely?, arXiv 2408.02442 — [arxiv.org/abs/2408.02442](https://arxiv.org/abs/2408.02442)
+- [S35] JSONSchemaBench, arXiv 2501.10868 — [arxiv.org/abs/2501.10868](https://arxiv.org/abs/2501.10868)
+- [S36] Speculative checkpointing (PR #19493, разбор) — [note.com/hacklog_stealth](https://note.com/hacklog_stealth/n/n1e1231b4869f?hl=en-US), [github.com/ggml-org/llama.cpp/pull/19493](https://github.com/ggml-org/llama.cpp/pull/19493)
+- [S37] llama.cpp discussion #22473 (draft Qwen3.5-0.8B → регрессия) — [github.com/ggml-org/llama.cpp/discussions/22473](https://github.com/ggml-org/llama.cpp/discussions/22473)
+- [S38] llama.cpp speculative.md — [github.com/ggml-org/llama.cpp/blob/master/docs/speculative.md](https://github.com/ggml-org/llama.cpp/blob/master/docs/speculative.md)
