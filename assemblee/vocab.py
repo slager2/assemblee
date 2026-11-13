@@ -19,7 +19,9 @@ DATA = json.loads((Path(__file__).with_name("vocab_data.json")).read_text())
 MODES = ("strict", "rich")
 
 RICH_TRANSITIONS = {r["id"]: r for r in DATA["transitions"] if "excluded" not in r}
-RICH_EFFECTS = {r["id"]: r for r in DATA["effects"] if "excluded" not in r}
+# glint: 1.3-1.5 s per frame to render and its animated sparkles hid captions in a live run
+EXCLUDED_AFTER_REVIEW = {"glint"}
+RICH_EFFECTS = {r["id"]: r for r in DATA["effects"] if "excluded" not in r and r["id"] not in EXCLUDED_AFTER_REVIEW}
 LUMETRI_LOOKS = [x for x in DATA["lumetri_looks"] if x != "None"]
 
 GRADE = {  # Lumetri parameter -> safe range (verified on renders)
