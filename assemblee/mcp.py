@@ -12,7 +12,11 @@ class MCPError(RuntimeError):
 class MCP:
     def __init__(self, cmd, timeout=120):
         self.cmd, self.timeout = [str(c) for c in cmd], timeout
-        self._start()
+        try:
+            self._start()
+        except BaseException:  # a failed handshake must not leave the engine process behind
+            self.close()
+            raise
 
     def _start(self):
         self.p = subprocess.Popen(self.cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, bufsize=1)
@@ -69,7 +73,11 @@ class MCP:
         return self.call("command_run", {"id": command_id, "params": params or {}})
 
     def close(self):
+        p = getattr(self, "p", None)
+        if p is None:
+            return
         try:
-            self.p.kill()
-        except OSError:
+            p.kill()
+            p.wait(timeout=5)
+        except (OSError, subprocess.TimeoutExpired):
             pass
