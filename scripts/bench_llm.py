@@ -26,6 +26,7 @@ import struct
 import sys
 import threading
 import time
+import urllib.error
 import urllib.request
 import zlib
 
@@ -145,17 +146,25 @@ def build_messages(rounds, nonce, seed=7):
     return msgs
 
 
-NEXT_USER = ("All clips are probed. Now call set_timeline ONCE with the full 45 second edit: 12 clips, each with "
+NEXT_USER = ("All clips are probed. Now call set_timeline ONCE with the full 45 second edit: 5 clips, each with "
              "asset, in, out, label, look, motion, caption and transition. Put the best moment first.")
 
 
-def turn_extension(msgs):
-    """Next agent turn: assistant tool call + tool result + new user message."""
+def turn_extension(msgs, user_msg=False):
+    """Next agent turn: assistant tool call + tool result carrying the next instruction.
+
+    With user_msg=True the instruction comes as a new *user* message instead.  The Qwen3.5
+    chat template then re-renders every earlier assistant turn without the empty
+    <think></think> block, so the prompt diverges right after the first user message and
+    almost the whole history has to be re-processed (hybrid model => no partial reuse).
+    """
     call = {"id": "call_x1", "type": "function",
             "function": {"name": "note", "arguments": json.dumps({"text": "Beats: hook=admin sword, fail=tower jump, win=key."})}}
-    return msgs + [{"role": "assistant", "content": "", "tool_calls": [call]},
-                   {"role": "tool", "tool_call_id": "call_x1", "content": json.dumps({"ok": True})},
-                   {"role": "user", "content": NEXT_USER}]
+    out = msgs + [{"role": "assistant", "content": "", "tool_calls": [call]}]
+    if user_msg:
+        return out + [{"role": "tool", "tool_call_id": "call_x1", "content": json.dumps({"ok": True})},
+                      {"role": "user", "content": NEXT_USER}]
+    return out + [{"role": "tool", "tool_call_id": "call_x1", "content": json.dumps({"ok": True, "next": NEXT_USER})}]
 
 
 # --------------------------------------------------------------------------
@@ -213,7 +222,12 @@ class Client:
         text = []
         n_chunks = 0
         usage = None
-        with urllib.request.urlopen(req, timeout=timeout) as r:
+        calls = {}
+        try:
+            resp = urllib.request.urlopen(req, timeout=timeout)
+        except urllib.error.HTTPError as e:
+            raise RuntimeError(f"HTTP {e.code}: {e.read()[:300].decode(errors='replace')}") from None
+        with resp as r:
             for line in r:
                 line = line.strip()
                 if not line.startswith(b"data:"):
@@ -232,6 +246,10 @@ class Client:
                     for tc in d.get("tool_calls") or []:
                         fn = tc.get("function") or {}
                         piece += (fn.get("name") or "") + (fn.get("arguments") or "")
+                        slot = calls.setdefault(tc.get("index", 0), {"id": None, "name": "", "arguments": ""})
+                        slot["id"] = tc.get("id") or slot["id"]
+                        slot["name"] += fn.get("name") or ""
+                        slot["arguments"] += fn.get("arguments") or ""
                     if piece:
                         n_chunks += 1
                         if ttft is None:
@@ -239,7 +257,8 @@ class Client:
                         text.append(piece)
         wall = time.perf_counter() - t0
         return {"ttft": ttft if ttft is not None else wall, "wall": wall, "timings": timings or {},
-                "usage": usage or {}, "text": "".join(text)}
+                "usage": usage or {}, "text": "".join(text),
+                "tool_calls": [calls[k] for k in sorted(calls)]}
 
 
 def r1(x):
@@ -277,7 +296,7 @@ def bench(args):
     res["warm_same_prompt_n"] = r["timings"].get("prompt_n")
     print(f"[{args.label}] warm same: ttft {r['ttft']:.3f}s, reprocessed {res['warm_same_prompt_n']} tok", file=sys.stderr)
 
-    # 3. next agent turn (prefix + new messages) -> warm TTFT + tool-call generation
+    # 3. next agent turn (prefix + tool call + tool result) -> warm TTFT + tool-call generation
     ext = turn_extension(msgs)
     gen_body = dict(common, messages=ext, max_tokens=args.gen_tokens, tool_choice="required")
 
@@ -293,11 +312,12 @@ def bench(args):
         vth.start()
 
     best = None
+    first = None
     for i in range(1 if args.concurrent else args.gen_repeats):
-        body = gen_body if i == 0 else dict(gen_body, messages=turn_extension(msgs))
-        r = cl.chat_stream(body)
+        r = cl.chat_stream(gen_body)
         t = r["timings"]
         if i == 0:
+            first = r
             res["ttft_warm_turn_s"] = r3(r["ttft"])
             res["warm_turn_prompt_n"] = t.get("prompt_n")
         if best is None or (t.get("predicted_per_second") or 0) > (best["timings"].get("predicted_per_second") or 0):
@@ -314,6 +334,29 @@ def bench(args):
     print(f"[{args.label}] turn ttft {res['ttft_warm_turn_s']}s (reprocessed {res['warm_turn_prompt_n']}), "
           f"tg {res['tg_tps']} t/s over {res['gen_tokens']} tok"
           + (f", accept {res.get('accept_rate')}" if "accept_rate" in res else ""), file=sys.stderr)
+
+    # 3b. the turn after that: history + the call the model really generated + its result.
+    #     Shows whether generated tokens are reused (re-rendered template == generated text).
+    if first["tool_calls"] and not args.concurrent:
+        tc = first["tool_calls"][0]
+        call = {"id": tc["id"] or "call_g1", "type": "function",
+                "function": {"name": tc["name"], "arguments": tc["arguments"]}}
+        nxt = ext + [{"role": "assistant", "content": "", "tool_calls": [call]},
+                     {"role": "tool", "tool_call_id": call["id"], "content": json.dumps({"ok": True, "clips": 5})}]
+        try:
+            r = cl.chat_stream(dict(common, messages=nxt, max_tokens=1))
+            res["ttft_after_gen_s"] = r3(r["ttft"])
+            res["after_gen_prompt_n"] = r["timings"].get("prompt_n")
+            print(f"[{args.label}] turn after gen: ttft {r['ttft']:.3f}s (reprocessed {res['after_gen_prompt_n']})", file=sys.stderr)
+        except RuntimeError as e:
+            print(f"[{args.label}] turn after gen failed: {e}", file=sys.stderr)
+
+    # 3c. optional: instruction as a new user message (template re-renders history)
+    if args.user_turn:
+        r = cl.chat_stream(dict(common, messages=turn_extension(msgs, user_msg=True), max_tokens=1))
+        res["ttft_new_user_s"] = r3(r["ttft"])
+        res["new_user_prompt_n"] = r["timings"].get("prompt_n")
+        print(f"[{args.label}] new user msg: ttft {r['ttft']:.3f}s (reprocessed {res['new_user_prompt_n']})", file=sys.stderr)
 
     # 4. vision
     if not args.no_vision:
@@ -365,12 +408,13 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--port", type=int, default=8011)
     ap.add_argument("--label", default="run")
-    ap.add_argument("--rounds", type=int, default=20, help="probe_clip rounds in history (20 ~= 20k tokens)")
-    ap.add_argument("--gen-tokens", type=int, default=400)
+    ap.add_argument("--rounds", type=int, default=10, help="probe_clip rounds in history (10 ~= 20k tokens)")
+    ap.add_argument("--gen-tokens", type=int, default=800, help="max_tokens cap; the answer itself is ~400 tokens")
     ap.add_argument("--gen-repeats", type=int, default=2)
     ap.add_argument("--concurrent", action="store_true", help="fire the vision request during generation")
     ap.add_argument("--concurrent-delay", type=float, default=1.5, help="seconds after gen start")
     ap.add_argument("--no-vision", action="store_true")
+    ap.add_argument("--user-turn", action="store_true", help="also time a turn that appends a user message")
     ap.add_argument("--out", help="append the JSON result line to this file")
     args = ap.parse_args()
 
