@@ -31,7 +31,8 @@ class Compiled:
         old = self.fc.timeout
         self.fc.timeout = 1800  # a 60 s vertical edit with effects renders on the CPU for several minutes
         try:
-            self.fc.run("file.exportMedia", {"path": str(path), "format": "h264", "bitrateKbps": bitrate_kbps, "wait": True})
+            self.fc.run("file.exportMedia", {"path": str(path), "format": "h264", "bitrateKbps": bitrate_kbps, "wait": True,
+                                             "hardwareEncoding": "auto"})  # NVENC when present, software otherwise
         finally:
             self.fc.timeout = old
         if not path.exists() or path.stat().st_size == 0:
