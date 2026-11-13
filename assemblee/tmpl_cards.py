@@ -49,7 +49,7 @@ def _center_block(heights, total=H):
 @register("card", "big_number", "огромное число или слово-удар (card_title), подпись под ним", "stat shock bold", (PAL, ACC))
 def big_number(title, sub, p):
     c = Canvas(p)
-    f, lines, sz = fit_text(title, FONT_BOLD, 420, W - 120, 2, 80)
+    f, lines, sz = fit_text(title, FONT_BOLD, 420, W - 120, 1, 60)
     hb = len(lines) * sz * 1.1 + (160 if sub else 0)
     y = _center_block(hb) + 20
     for i, l in enumerate(lines):
@@ -99,11 +99,14 @@ def quote_card(title, sub, p):
 def checklist(title, sub, p):
     c = Canvas(p)
     items = _items(sub)[:6] or ["…"]
-    y, f, lines, sz = c.text(title, FONT_BOLD, 110, 300, width=W - 160, max_lines=2)
-    y += 60
-    row = min(190, int((H - y - 260) / len(items)))
+    row = 210
+    f, tl, tsz = fit_text(title, FONT_BOLD, 120, W - 160, 2)
+    y = _center_block(len(tl) * tsz * 1.2 + 70 + row * len(items))
+    for i, l in enumerate(tl):
+        c.d.text((W / 2, y + i * tsz * 1.2), l, font=f, fill=c.fg, anchor="ma")
+    y += len(tl) * tsz * 1.2 + 70
     for it in items:
-        bf, bl, bs = fit_text(it, FONT_BOOK, 60, W - 340, 2, 34)
+        bf, bl, bs = fit_text(it, FONT_BOOK, 76, W - 340, 2, 34)
         c.d.rounded_rectangle((100, y, 100 + 90, y + 90), 18, fill=c.acc)
         c.d.line([(122, y + 46), (143, y + 68), (178, y + 24)], fill=ink(c.acc), width=12, joint="curve")
         for i, l in enumerate(bl):
@@ -135,9 +138,12 @@ def vs_card(title, sub, p):
 def timeline(title, sub, p):
     c = Canvas(p)
     items = _items(sub)[:5] or ["…"]
-    y, *_ = c.text(title, FONT_BOLD, 110, 220, width=W - 160, max_lines=2)
-    top = y + 90
-    step = min(260, int((H - top - 200) / len(items)))
+    step = 300
+    f, tl, tsz = fit_text(title, FONT_BOLD, 120, W - 160, 2)
+    y = _center_block(len(tl) * tsz * 1.2 + 110 + step * (len(items) - 1)) - 20
+    for i, l in enumerate(tl):
+        c.d.text((W / 2, y + i * tsz * 1.2), l, font=f, fill=c.fg, anchor="ma")
+    top = y + len(tl) * tsz * 1.2 + 130
     x = 200
     c.d.line((x, top, x, top + step * (len(items) - 1)), fill=c.acc, width=10)
     for i, it in enumerate(items):
@@ -147,8 +153,8 @@ def timeline(title, sub, p):
         if not rest:
             label, rest = "", it
         if label:
-            c.d.text((x + 70, cy - 70), label.strip()[:12], font=font(FONT_BOLD, 52), fill=c.acc)
-        f, lines, sz = fit_text(rest.strip(), FONT_BOOK, 54, W - x - 140, 2, 32)
+            c.d.text((x + 70, cy - 84), label.strip()[:12], font=font(FONT_BOLD, 64), fill=c.acc)
+        f, lines, sz = fit_text(rest.strip(), FONT_BOOK, 68, W - x - 140, 2, 32)
         for k, l in enumerate(lines):
             c.d.text((x + 70, cy - (8 if label else 30) + k * sz * 1.2), l, font=f, fill=c.fg)
     return c.img
@@ -168,9 +174,9 @@ def poll_card(title, sub, p):
     fills = [0.62, 0.38, 0.2, 0.1]
     for i, o in enumerate(opts):
         c.d.rounded_rectangle((80, y, W - 80, y + 150), 36, fill=tuple(int(v * 0.55 + 20) for v in PALETTES[p["palette"]][1]), outline=c.fg, width=4)
-        c.d.rounded_rectangle((80, y, 80 + int((W - 160) * fills[i]), y + 150), 36, fill=c.acc + (255,))
-        bf, bl, bs = fit_text(o, FONT_BOLD, 64, W - 360, 1, 32)
-        c.d.text((130, y + 75), f"{chr(65 + i)}  {bl[0]}", font=bf, fill=(15, 15, 20) if fills[i] > 0.3 and sum(c.acc) > 400 else c.fg, anchor="lm")
+        c.d.rounded_rectangle((110, y + 112, 110 + int((W - 220) * fills[i]), y + 126), 7, fill=c.acc)
+        bf, bl, bs = fit_text(o, FONT_BOLD, 70, W - 300, 1, 32)
+        c.d.text((120, y + 52), f"{chr(65 + i)}  {bl[0]}", font=bf, fill=c.fg, anchor="lm")
         y += 200
     return c.img
 
@@ -181,13 +187,13 @@ def chapter(title, sub, p):
     f, lines, sz = fit_text(title, FONT_SERIF, 130, W - 200, 3, 60)
     hb = 120 + len(lines) * sz * 1.2 + (110 if sub else 0)
     y = _center_block(hb)
-    c.d.text((W / 2, y), f"ГЛАВА {p['number']}", font=font(FONT_BOLD, 46), fill=c.acc, anchor="ma")
+    c.d.text((W / 2, y), f"ГЛАВА {p['number']}", font=font(FONT_BOLD, 60), fill=c.acc, anchor="ma")
     c.d.line((W / 2 - 90, y + 85, W / 2 + 90, y + 85), fill=c.acc, width=4)
     y += 130
     for i, l in enumerate(lines):
         c.d.text((W / 2, y + i * sz * 1.2), l, font=f, fill=c.fg, anchor="ma")
     if sub:
-        c.text(sub, FONT_BOOK, 50, y + len(lines) * sz * 1.2 + 30, width=W - 260, max_lines=2, fill=c.fg)
+        c.text(sub, FONT_BOOK, 62, y + len(lines) * sz * 1.2 + 30, width=W - 260, max_lines=2, fill=c.fg)
     return c.img
 
 
@@ -215,13 +221,13 @@ def sticky_note(title, sub, p):
     d = ImageDraw.Draw(note)
     d.rectangle((0, 0, 859, 959), fill=tuple(min(255, v) for v in rgb(p["color"])) + (255,))
     d.polygon([(860, 900), (860, 960), (800, 960)], fill=tuple(int(v * 0.8) for v in rgb(p["color"])) + (255,))
-    f, lines, sz = fit_text(title, FONT_SERIF_ITALIC, 100, 700, 4, 46)
+    f, lines, sz = fit_text(title, FONT_SERIF_ITALIC, 124, 700, 4, 46)
     y = 130
     for i, l in enumerate(lines):
         d.text((430, y + i * sz * 1.2), l, font=f, fill=(30, 25, 20), anchor="ma")
     y += len(lines) * sz * 1.2 + 40
     if sub:
-        sf, sl, ss = fit_text(sub, FONT_SERIF_ITALIC, 62, 700, 4, 34)
+        sf, sl, ss = fit_text(sub, FONT_SERIF_ITALIC, 76, 700, 4, 34)
         for i, l in enumerate(sl):
             d.text((430, y + i * ss * 1.25), l, font=sf, fill=(70, 55, 40), anchor="ma")
     d.rectangle((300, -16, 560, 56), fill=(235, 235, 225, 200))

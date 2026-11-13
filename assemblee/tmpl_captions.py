@@ -154,11 +154,11 @@ def stacked(text, pos, p):
 @register("caption", "quote", "цитата: большая кавычка, курсив, автор после « — » или «|»", "wisdom calm story", (COLOR, SIZE))
 def quote(text, pos, p):
     body, author = _split_tail(text)
-    c = Cap(body, pos, p, 74, width=W - 240, max_lines=4, path=FONT_SERIF_ITALIC)
+    c = Cap(body, pos, p, 88, width=W - 240, max_lines=4, path=FONT_SERIF_ITALIC)
     af = font(FONT_BOOK, 44)
     h_total = len(c.lines) * c.lh + (80 if author else 0) + 120
     y = c.cy - h_total / 2
-    c.d.text((W / 2, y - 40), "“", font=font(FONT_SERIF, 240), fill=c.c + (255,), anchor="ma")
+    c.d.text((W / 2, y - 40), "“", font=font(FONT_SERIF, 380), fill=c.c + (255,), anchor="ma")
     y += 130
     for l in c.lines:
         c.d.text((W / 2, y), l, font=c.f, fill=(255, 255, 255, 255), anchor="ma", stroke_width=4, stroke_fill=(0, 0, 0, 230))
@@ -209,7 +209,7 @@ def sticker(text, pos, p):
 
 @register("caption", "speech_bubble", "белый облачок-реплика с хвостиком, чёрный текст", "comic dialogue fun", (SIZE, penum("corner", ["bl", "br"], "bl", "куда смотрит хвостик")))
 def speech_bubble(text, pos, p):
-    c = Cap(text, pos, p, 62, width=W - 300, max_lines=4, path=FONT_UBUNTU)
+    c = Cap(text, pos, p, 74, width=W - 300, max_lines=4, path=FONT_UBUNTU)
     w = max(c.widths()) + 100
     hgt = len(c.lines) * c.lh + 60
     x0, y0 = (W - w) / 2, c.cy - hgt / 2
@@ -226,7 +226,7 @@ def speech_bubble(text, pos, p):
 
 @register("caption", "typewriter", "печатная машинка: моноширинный текст на тёмной бумаге с курсором", "mystery doc noir", (pcolor("color", "green", "цвет букв"), SIZE))
 def typewriter(text, pos, p):
-    c = Cap(text, pos, p, 54, width=W - 240, max_lines=5, path=FONT_TYPE)
+    c = Cap(text, pos, p, 66, width=W - 240, max_lines=5, path=FONT_TYPE)
     w = max(c.widths()) + 140
     hgt = len(c.lines) * c.lh + 70
     x0, y0 = (W - w) / 2, c.cy - hgt / 2
@@ -261,7 +261,7 @@ def newspaper(text, pos, p):
 def speaker_sub(text, pos, p):
     m = re.match(r"^\s*([^:\n]{1,18}):\s*(.+)$", text, re.S)
     name, body = (m.group(1).strip(), m.group(2)) if m else ("Рассказчик", text)
-    c = Cap(body, pos, p, 64, max_lines=3)
+    c = Cap(body, pos, p, 76, max_lines=3)
     nf = font(FONT_BOLD, 40)
     name = name.upper()
     nw = text_w(name, nf) + 50
@@ -286,7 +286,7 @@ def gradient_text(text, pos, p):
     g = Image.new("RGB", (W, H), c.c)
     band = vgradient(c.c, c.c2, (W, max(1, bot - top)))
     g.paste(band, (0, top))
-    g.paste(c.c2, (0, bot))
+    g.paste(c.c2, (0, bot, W, H))
     c.img.paste(g, (0, 0), mask)
     return c.img
 
@@ -337,7 +337,7 @@ def countdown(text, pos, p):
 
 @register("caption", "marker", "текст, выделенный жёлтым маркером поверх строк", "study note highlight", (pcolor("color", "yellow", "цвет маркера"), SIZE))
 def marker(text, pos, p):
-    c = Cap(text, pos, p, 70, max_lines=3, path=FONT_UBUNTU)
+    c = Cap(text, pos, p, 86, max_lines=3, path=FONT_UBUNTU)
     for i, l in enumerate(c.lines):
         w = text_w(l, c.f)
         y = c.top + i * c.lh
