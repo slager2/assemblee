@@ -204,13 +204,15 @@ function onToolCall(ev) {
   S.calls += 1;
   const st = h("span", { class: "st" }, "выполняется…");
   const dur = h("span", { class: "dur" });
+  const body = h("div", { class: "tbody" }, h("div", { class: "sec" }, "Аргументы"), jsonPre(d.args || {}));
   const el = h("div", { class: "ev ev-tool pending" },
-    h("div", { class: "row" },
-      h("span", { class: "name" }, d.name || "?"),
-      h("span", { class: "preview", title: preview(d.args, 1000) }, preview(d.args)),
-      st, dur),
-    h("details", null, h("summary", null, "аргументы"), jsonPre(d.args || {})));
-  S.tools.set(d.id, { el, st, dur });
+    h("details", null,
+      h("summary", { class: "row" },
+        h("span", { class: "name" }, d.name || "?"),
+        h("span", { class: "preview", title: preview(d.args, 1000) }, preview(d.args)),
+        st, dur),
+      body));
+  S.tools.set(d.id, { el, st, dur, body });
   feedAppend(el);
 }
 
@@ -230,10 +232,9 @@ function onToolResult(ev) {
   const r = d.result;
   if (!ok) {
     const msg = r && typeof r === "object" ? (r.error || r.message) : r;
-    if (msg) t.el.querySelector(".row").after(h("div", { class: "err-line" }, String(msg)));
+    t.el.append(h("div", { class: "err-line" }, String(msg ?? "ошибка без сообщения")));
   }
-  const det = h("details", { open: !ok }, h("summary", null, "результат"), jsonPre(r ?? null));
-  t.el.append(det);
+  t.body.append(h("div", { class: "sec" }, "Результат"), jsonPre(r ?? null));
 }
 
 function onNote(ev, kind) {
@@ -523,20 +524,20 @@ function renderScenes() {
   const clips = (S.timeline && S.timeline.clips) || [];
   $("#scenesInfo").textContent = clips.length ? `${clips.length}` : "";
   if (!clips.length) {
-    tb.append(h("tr", null, h("td", { colspan: 9, class: "empty" }, "Сцен пока нет")));
+    tb.append(h("tr", null, h("td", { colspan: 7, class: "empty" }, "Сцен пока нет")));
     return;
   }
   for (const c of clips) {
     const tr = h("tr", { "data-n": c.n, class: selectedClip === c.n ? "sel" : null, onclick: () => { selectClip(c.n, false); seekTo((Number(c.start) || 0) + 0.01); } },
       h("td", { class: "num" }, c.n),
-      h("td", null, h("span", { class: `kind ${c.kind === "card" ? "card" : "clip"}` }, c.kind === "card" ? "карт." : "клип")),
-      h("td", null, c.label || ""),
-      h("td", { class: "mono" }, `${fmtTC(Number(c.start) || 0)}–${fmtTC(Number(c.end) || 0)}`),
-      h("td", { class: "mono" }, fmtSec((c.end || 0) - (c.start || 0))),
-      h("td", { class: "mono" }, c.look || "—"),
-      h("td", { class: "mono" }, c.motion || "—"),
-      h("td", null, (c.effects && c.effects.length) ? h("div", { class: "chips" }, c.effects.map((f) => h("i", null, f))) : h("span", { class: "muted" }, "—")),
-      h("td", { class: "wrap" }, c.caption ? `«${c.caption}»` : h("span", { class: "muted" }, "—")));
+      h("td", { class: `thumbcell ${c.kind === "card" ? "card" : "pic"}`, title: c.kind === "card" ? "карточка" : "клип" }, c.thumb ? h("img", { src: fileUrl(S.runId, c.thumb) + `?v=${S.timelineSeq}`, alt: "", loading: "lazy" }) : null),
+      h("td", { class: "ell", title: c.label || "" }, c.label || ""),
+      h("td", { class: "mono ell" }, `${fmtTC(Number(c.start) || 0)}–${fmtTC(Number(c.end) || 0)}`,
+        h("span", { class: "muted" }, ` · ${((c.end || 0) - (c.start || 0)).toFixed(1)}с`)),
+      h("td", { class: "mono ell", title: [c.look, c.motion].filter(Boolean).join(" · ") },
+        c.look || "—", h("span", { class: "muted" }, " · "), c.motion || "—"),
+      h("td", { class: "ell" }, (c.effects && c.effects.length) ? h("div", { class: "chips" }, c.effects.map((f) => h("i", null, f))) : h("span", { class: "muted" }, "—")),
+      h("td", { class: "ell cap-cell", title: c.caption || "" }, c.caption ? `«${c.caption}»` : h("span", { class: "muted" }, "—")));
     tb.append(tr);
   }
   updatePlayhead();
