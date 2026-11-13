@@ -397,7 +397,7 @@ def schema_fragments(mode="strict", effect_params=True):
     parameter ranges (effect_params=False keeps them as {id, amount} for a smaller grammar), grade, camera, speed,
     text_anim. Every property is optional for the grammar; the validator fills defaults.
     """
-    from .cards import CARD_STYLES
+    from .templates import CARD_IDS as CARD_STYLES
     from .edl import EFFECTS, LOOKS, MOTIONS, TRANSITIONS
     if mode not in MODES:
         raise ValueError(f"mode must be one of {MODES}")

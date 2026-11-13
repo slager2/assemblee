@@ -25,13 +25,16 @@ from . import assets as assets_mod
 from . import ideas as ideas_mod
 from . import music as music_mod
 from . import vocab
-from .cards import CARD_STYLES, render_card
+from . import templates
+from .templates import CARD_IDS, CAPTION_IDS, render_card
 from .compiler import compile_edl, picture_media
 from .config import FONT_BOLD, REPO
 from .edl import EDL, EFFECTS, LIMITS, clamp, LOOKS, MOTIONS, MUSIC, TRANSITIONS, Section
 from .events import EventLog
 from .llm import LLM, LLMError
-from .media import CAPTION_STYLES, POSITIONS, h, thumb
+from .media import POSITIONS, h, thumb
+
+CAPTION_STYLES, CARD_STYLES = CAPTION_IDS, CARD_IDS  # registry ids (templates.py)
 from .tools import POLISH_TOOLS, PolishTools, polish_tools
 
 GUARDRAILS = ("full", "light", "off")
@@ -224,9 +227,9 @@ class Agent:
     def thumb_for(self, shot):
         try:
             if shot.kind == "card":
-                media = render_card(shot.title, shot.subtitle, shot.card_style, shot.seconds)
+                media = render_card(shot.title, shot.subtitle, shot.card_style, shot.seconds, shot.card_params)
             else:
-                media = picture_media(self.edl.catalog[shot.asset])
+                media = picture_media(self.edl.catalog[shot.asset], shot, self.edl.catalog)
             t = thumb(media)
             dst = self.run_dir / "frames" / "thumbs" / t.name
             if not dst.exists():
@@ -383,6 +386,7 @@ class Agent:
         msgs = [{"role": "system", "content": SYSTEM},
                 {"role": "user", "content": f"ЗАДАЧА:\n{self.task}\n\nДлительность ролика: около {int(self.seconds)} секунд.\n\nМАТЕРИАЛЫ:\n{self.briefs_text}\n\n"
                                             f"КАРТИНКИ (id | что | настроение):\n{self.assets_text}\n\n"
+                                            f"ШАБЛОНЫ ФОРМЫ (выбирай под настроение кадра, разнообразь; layout по умолчанию auto):\n{templates.prompt_section()}\n\n"
                                             "Сначала придумай раскадровку: 3-8 секций по порядку просмотра (интро и финал тоже секции). "
                                             "Для каждой: короткое имя (латиницей, без пробелов), key_message — главная мысль секции в 2-6 словах, цель секции, сколько секунд, музыка, визуальный стиль, "
                                             "asset_group — из какой папки картинок брать кадры (any — из любой, для интро и финала), "
@@ -443,6 +447,9 @@ class Agent:
         frag = vocab.schema_fragments(self.mode, effect_params=False)
         picture["properties"].update(frag["picture"])
         card["properties"].update(frag["card"])
+        picture["properties"].update(templates.schema_props("picture"))  # layouts, caption styles + params from the registry
+        card["properties"].update(templates.schema_props("card"))
+        picture["properties"]["extra_assets"]["items"]["enum"] = ids
         return {"type": "object", "properties": {"shots": {"type": "array", "minItems": 2, "maxItems": 8, "items": {"anyOf": [picture, card]}}}, "required": ["shots"]}
 
     def _build_section(self, k, sec, schema):
@@ -451,6 +458,7 @@ class Agent:
         msgs = [{"role": "system", "content": SYSTEM},
                 {"role": "user", "content": f"ЗАДАЧА:\n{self.task}\n\nМАТЕРИАЛЫ:\n{self.briefs_text}\n\nРАСКАДРОВКА:\n{json.dumps(self.storyboard, ensure_ascii=False)}\n\n"
                                             f"КАРТИНКИ (id | что | настроение):\n{self.assets_text}\n\n"
+                                            f"ШАБЛОНЫ ФОРМЫ (выбирай под настроение кадра, разнообразь; layout по умолчанию auto):\n{templates.prompt_section()}\n\n"
                                             + (f"СЛОВАРЬ ПРИЁМОВ (можно использовать любые, подбирай под настроение секции):\n{vocab.prompt_section('rich', with_params=False)}\n"
                                                "Для картинок можно задавать grade (цвет числами), camera (движение камеры с easing), effects как {id, amount 0..100 — сила в процентах}; "
                                                "для карточек text_anim.\n\n" if self.mode == "rich" else "")},

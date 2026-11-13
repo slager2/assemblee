@@ -1,8 +1,9 @@
 """Polish-phase tools: small, enum-constrained edits of the EDL (never of the NLE directly)."""
 from . import vocab
-from .cards import CARD_STYLES
+from . import templates
+from .templates import CARD_IDS as CARD_STYLES, CAPTION_IDS as CAPTION_STYLES
 from .edl import EDL, clean_text, is_animated, EFFECTS, LOOKS, MOTIONS, MUSIC, SFX, TRANSITIONS, Caption, clamp, pick, LIMITS
-from .media import CAPTION_STYLES, POSITIONS
+from .media import POSITIONS
 
 
 READ_FLOOR = 0.8  # a shot with text is never shorter than this (same hard floor as the build phase)
@@ -53,7 +54,7 @@ _BASE = [
            "caption_style": {"type": "string", "enum": CAPTION_STYLES}, "caption_position": {"type": "string", "enum": POSITIONS},
            "effects": {"type": "array", "items": {"type": "string", "enum": list(EFFECTS)}, "description": "replaces the effect list (max 2); [] removes all"},
            "transition_out": {"type": "string", "enum": TRANSITIONS}, "card_title": {"type": "string"}, "card_subtitle": {"type": "string"},
-           "card_style": {"type": "string", "enum": CARD_STYLES}},
+           "card_style": {"type": "string", "enum": CARD_STYLES}, **templates.schema_props("picture"), **templates.schema_props("card")},
           ["shot"]),
     _tool("delete_shot", "Remove one shot.", {"shot": SHOT}, ["shot"]),
     _tool("move_shot", "Move a shot to a new position (1-based).", {"shot": SHOT, "to": INT}, ["shot", "to"]),
@@ -119,6 +120,12 @@ class PolishTools:
                     s.caption = Caption(text)
             if s.caption and "caption_style" in f:
                 s.caption.style = pick(f["caption_style"], CAPTION_STYLES, s.caption.style, "caption_style", w)
+                s.caption.params = templates.resolve_params("caption", s.caption.style, f.get("caption_params") or s.caption.params, w)
+            elif s.caption and "caption_params" in f:
+                s.caption.params = templates.resolve_params("caption", s.caption.style, f["caption_params"], w)
+            if "layout" in f or "layout_params" in f or "extra_assets" in f:
+                self.edl.apply_layout(s, {"layout": f.get("layout", s.layout), "layout_params": f.get("layout_params", s.layout_params),
+                                          "extra_assets": f.get("extra_assets", s.extra_assets)}, w)
             if s.caption and "caption_position" in f:
                 s.caption.position = pick(f["caption_position"], POSITIONS, s.caption.position, "caption_position", w)
         else:
@@ -128,6 +135,8 @@ class PolishTools:
                 s.subtitle = clean_text(f["card_subtitle"], 80)
             if "card_style" in f:
                 s.card_style = pick(f["card_style"], CARD_STYLES, s.card_style, "card_style", w)
+            if "card_style" in f or "card_params" in f:
+                s.card_params = templates.resolve_params("card", s.card_style, f.get("card_params") or s.card_params, w)
             if "text_anim" in f and self.edl.mode == "rich":
                 s.text_anim = vocab.resolve_text_anim(f["text_anim"], w)
         if "transition_out" in f or "transition_params" in f:

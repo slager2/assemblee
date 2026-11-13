@@ -53,6 +53,8 @@ class Param:
     def short(self):
         if self.kind == "int":
             return f"{self.name} {self.lo}..{self.hi}"
+        if self.options == tuple(COLORS):
+            return f"{self.name} цвет"
         return f"{self.name} " + "|".join(self.options)
 
 
@@ -147,7 +149,7 @@ CAT_PARAM_KEY = {"layout": "layout_params", "caption": "caption_params", "card":
 
 def prompt_section(cats=("layout", "caption", "card"), with_params=True):
     """One line per template, grouped by category: `- id: описание [настроение] (параметры)`."""
-    lines = []
+    lines = ["Цвета в параметрах (color, color2, bg...): " + ", ".join(COLORS) + ". Числа в параметрах — целые."]
     for cat in cats:
         lines.append(CAT_TITLES[cat] + ":")
         for t in REG[cat].values():

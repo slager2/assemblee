@@ -7,7 +7,7 @@ import math
 import time
 from pathlib import Path
 
-from .cards import render_card
+from . import templates
 from .config import AUDIO_DIR, FILMCRAFT_CLI, FPS, H, TICKS, W
 from . import vocab
 from .edl import EDL, EFFECTS, LOOKS, SFX
@@ -43,9 +43,14 @@ class Compiled:
         self.fc.close()
 
 
-def picture_media(entry):
+def picture_media(entry, shot=None, catalog=None):
+    """Prepared 1080x1920 media for a picture entry; with a shot that has a template layout, the layout is rendered
+    (the shot's asset first, then its extra_assets)."""
     if entry.get("kind") == "animated" or str(entry["path"]).lower().endswith((".gif", ".mp4", ".webm", ".mov")):
         return animated_to_vertical_mp4(entry["path"])
+    if shot is not None and shot.layout != "auto" and shot.layout in templates.REG["layout"]:
+        paths = [entry["path"]] + [catalog[a]["path"] for a in shot.extra_assets if catalog and a in catalog]
+        return templates.render_layout(shot.layout, paths, shot.layout_params)
     return fit_vertical(entry["path"], entry.get("fit", "auto"))
 
 
@@ -106,9 +111,10 @@ def _compile_into(fc, edl: EDL, on_call=None, on_progress=None) -> Compiled:
     for i, (shot, (s, e)) in enumerate(zip(edl.shots, times), 1):
         on_progress and on_progress(f"shot {i}/{len(edl.shots)}")
         if shot.kind == "card":
-            media = render_card(shot.title, shot.subtitle, shot.card_style, shot.seconds, on_call=lambda c, p: note("effectcraft", c, p), text_anim=shot.text_anim)
+            media = templates.render_card(shot.title, shot.subtitle, shot.card_style, shot.seconds, shot.card_params,
+                                          on_call=lambda c, p: note("effectcraft", c, p), text_anim=shot.text_anim)
         else:
-            media = picture_media(edl.catalog[shot.asset])
+            media = picture_media(edl.catalog[shot.asset], shot, edl.catalog)
         speed = shot.speed if shot.kind == "picture" else 100.0
         src = shot.seconds * speed / 100  # source seconds, so the sped-up/slowed clip fills exactly shot.seconds
         cid = run("timeline.place", {"item": imp(media), "track": "V1", "seconds": s, "insert": False, "duration": {"seconds": src}, "audio": False})["clips"][0]
@@ -149,7 +155,7 @@ def _compile_into(fc, edl: EDL, on_call=None, on_progress=None) -> Compiled:
                 for p, v, animate in params:
                     set_param(cid, idx, p, v, s, e, f"shot {i} {eid}", animate)
             if shot.caption:
-                cap = caption_png(shot.caption.text, shot.caption.style, shot.caption.position)
+                cap = caption_png(shot.caption.text, shot.caption.style, shot.caption.position, shot.caption.params)
                 ccid = run("timeline.place", {"item": imp(cap), "track": "V2", "seconds": s, "insert": False, "duration": {"seconds": shot.seconds}})["clips"][0]
                 fade = min(0.25, shot.seconds / 4)
                 kf(ccid, "opacity", "opacity", [(s, 0), (s + fade, 100), (e - fade, 100), (e, 0)])
