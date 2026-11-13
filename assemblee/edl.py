@@ -49,9 +49,14 @@ LIMITS = {"picture_seconds": (0.6, 8.0), "card_seconds": (1.2, 5.0), "transition
 EMOJI = re.compile("[\U0001F000-\U0001FAFF\u2600-\u27BF\uFE0F\u200d]")
 
 
+STYLE_TAG = re.compile(r"^\s*\[(subtitle|cartoon|retro2011|system|glitch|minimal|final|joining_server)\]\s*", re.I)
+
+
 def clean_text(text, limit):
-    """Captions are drawn with DejaVu fonts, which have no emoji: strip them and tidy spaces."""
-    return re.sub(r"[ \t]+", " ", EMOJI.sub("", str(text or ""))).strip()[:limit]
+    """Captions are drawn with DejaVu fonts, which have no emoji: strip them and tidy spaces. A leading style tag
+    like "[glitch] " is metadata the model copied from an edit list, never caption text."""
+    t = STYLE_TAG.sub("", EMOJI.sub("", str(text or "")))
+    return re.sub(r"[ \t]+", " ", t).strip()[:limit]
 
 
 def pick(value, allowed, default, what, warnings):
@@ -282,7 +287,8 @@ class EDL:
                 if s.speed != 100:
                     row["speed"] = s.speed
                 if s.caption:
-                    row["caption"] = f"[{s.caption.style}] {s.caption.text[:50]}"
+                    row["caption"] = s.caption.text[:60]
+                    row["caption_style"] = s.caption.style
                 if s.effects:
                     row["effects"] = s.effects
             else:
