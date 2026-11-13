@@ -119,8 +119,14 @@ class PolishTools:
         return {"ok": True}
 
     def dispatch(self, name, args):
-        if name not in {t["function"]["name"] for t in POLISH_TOOLS}:
+        spec = next((t["function"] for t in POLISH_TOOLS if t["function"]["name"] == name), None)
+        if spec is None:
             return {"error": f"unknown tool {name}; tools: {[t['function']['name'] for t in POLISH_TOOLS]}"}
+        allowed = spec["parameters"]["properties"]
+        args = {k: v for k, v in (args or {}).items() if k in allowed}  # the flat action schema lets the model fill unrelated fields
+        missing = [k for k in spec["parameters"]["required"] if k not in args]
+        if missing:
+            return {"error": f"{name}: missing {missing}"}
         try:
             return getattr(self, name)(**args)
         except TypeError as e:
