@@ -1,0 +1,5388 @@
+{
+ "engines": {
+  "filmcraft": "filmcraft-0.20.1-linux-x86_64",
+  "effectcraft": "effectcraft-0.24.1-linux-x86_64"
+ },
+ "transitions": [
+  {
+   "id": "block_motion",
+   "name": "Block Motion",
+   "category": "Animation",
+   "desc": "picture breaks into sliding blocks that fly in from one side",
+   "main": "blocks",
+   "preset": {},
+   "params": {
+    "direction": {
+     "type": "choice",
+     "options": [
+      "From North",
+      "From East",
+      "From South",
+      "From West"
+     ],
+     "animatable": false
+    },
+    "blocks": {
+     "type": "number",
+     "min": 3,
+     "max": 16,
+     "default": 6.0,
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "flip_motion",
+   "name": "Flip Motion",
+   "category": "Animation",
+   "desc": "outgoing picture flips away like a card, the next one flips in",
+   "main": null,
+   "preset": {},
+   "params": {
+    "direction": {
+     "type": "choice",
+     "options": [
+      "From North",
+      "From East",
+      "From South",
+      "From West"
+     ],
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "fold_motion",
+   "name": "Fold Motion",
+   "category": "Animation",
+   "desc": "picture folds in half like paper and unfolds into the next",
+   "main": null,
+   "preset": {},
+   "params": {
+    "direction": {
+     "type": "choice",
+     "options": [
+      "From North",
+      "From East",
+      "From South",
+      "From West"
+     ],
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "pop_motion",
+   "name": "Pop Motion",
+   "category": "Animation",
+   "desc": "next picture pops in from small with a springy overshoot",
+   "main": "overshoot",
+   "preset": {},
+   "params": {
+    "overshoot": {
+     "type": "number",
+     "min": 0,
+     "max": 60,
+     "default": 20.0,
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "pull_motion",
+   "name": "Pull Motion",
+   "category": "Animation",
+   "desc": "outgoing picture is pulled away, shrinking toward the edge",
+   "main": null,
+   "preset": {},
+   "params": {
+    "direction": {
+     "type": "choice",
+     "options": [
+      "From North",
+      "From East",
+      "From South",
+      "From West"
+     ],
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "spin_motion",
+   "name": "Spin Motion",
+   "category": "Animation",
+   "desc": "both pictures spin around the centre with motion blur",
+   "main": "rotation",
+   "preset": {},
+   "params": {
+    "rotation": {
+     "type": "number",
+     "min": 90,
+     "max": 720,
+     "default": 360.0,
+     "animatable": false
+    },
+    "spin": {
+     "type": "choice",
+     "options": [
+      "Clockwise",
+      "Counter-clockwise"
+     ],
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "spring_motion",
+   "name": "Spring Motion",
+   "category": "Animation",
+   "desc": "next picture bounces in on a spring from one side",
+   "main": "bounce",
+   "preset": {},
+   "params": {
+    "direction": {
+     "type": "choice",
+     "options": [
+      "From North",
+      "From East",
+      "From South",
+      "From West"
+     ],
+     "animatable": false
+    },
+    "bounce": {
+     "type": "number",
+     "min": 10,
+     "max": 80,
+     "default": 40.0,
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "travel_motion",
+   "name": "Travel Motion",
+   "category": "Animation",
+   "desc": "camera travels sideways from one picture to the next, both shrink a little",
+   "main": "zoom",
+   "preset": {},
+   "params": {
+    "direction": {
+     "type": "choice",
+     "options": [
+      "From North",
+      "From East",
+      "From South",
+      "From West"
+     ],
+     "animatable": false
+    },
+    "zoom": {
+     "type": "number",
+     "min": 10,
+     "max": 60,
+     "default": 40.0,
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "additive_dissolve",
+   "name": "Additive Dissolve",
+   "category": "Dissolve",
+   "desc": "bright dissolve: the two pictures add up, highlights flare",
+   "main": null,
+   "preset": {},
+   "params": {}
+  },
+  {
+   "id": "blur_dissolve",
+   "name": "Blur Dissolve",
+   "category": "Dissolve",
+   "desc": "dissolve through a heavy blur, soft and dreamy",
+   "main": "blur",
+   "preset": {},
+   "params": {
+    "blur": {
+     "type": "number",
+     "min": 10,
+     "max": 120,
+     "default": 40.0,
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "burn_alpha",
+   "name": "Burn Alpha",
+   "category": "Dissolve",
+   "desc": "outgoing picture burns away with glowing fiery edges",
+   "main": "softness",
+   "preset": {},
+   "params": {
+    "burn_color": {
+     "type": "color",
+     "animatable": false
+    },
+    "softness": {
+     "type": "number",
+     "min": 10,
+     "max": 60,
+     "default": 25.0,
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "cross_dissolve",
+   "name": "Cross Dissolve",
+   "category": "Dissolve",
+   "desc": "classic soft cross-fade",
+   "main": null,
+   "preset": {},
+   "params": {}
+  },
+  {
+   "id": "dip_to_black",
+   "name": "Dip to Black",
+   "category": "Dissolve",
+   "desc": "fade to black, then up into the next picture",
+   "main": null,
+   "preset": {},
+   "params": {}
+  },
+  {
+   "id": "dip_to_color",
+   "name": "Dip to Color",
+   "category": "Dissolve",
+   "desc": "fade through a solid colour (default red)",
+   "main": null,
+   "preset": {
+    "color": "#d83333"
+   },
+   "params": {
+    "color": {
+     "type": "color",
+     "animatable": false
+    },
+    "hold": {
+     "type": "number",
+     "min": 0,
+     "max": 40,
+     "default": 0.0,
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "dip_to_white",
+   "name": "Dip to White",
+   "category": "Dissolve",
+   "desc": "fade through white, like an overexposed flash",
+   "main": null,
+   "preset": {},
+   "params": {}
+  },
+  {
+   "id": "film_dissolve",
+   "name": "Film Dissolve",
+   "category": "Dissolve",
+   "desc": "film-like dissolve with a slightly darker, gamma-correct mix",
+   "main": null,
+   "preset": {},
+   "params": {}
+  },
+  {
+   "id": "luma_fade",
+   "name": "Luma Fade",
+   "category": "Dissolve",
+   "desc": "dissolve where the bright areas change first, then the darks",
+   "main": "softness",
+   "preset": {},
+   "params": {
+    "softness": {
+     "type": "number",
+     "min": 5,
+     "max": 60,
+     "default": 20.0,
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "morph_cut",
+   "name": "Morph Cut",
+   "category": "Dissolve",
+   "excluded": "meant for talking-head jump cuts; on unrelated pictures it is just a muddy dissolve"
+  },
+  {
+   "id": "mosaic_transition",
+   "name": "Mosaic",
+   "category": "Dissolve",
+   "desc": "pictures dissolve through big pixel blocks",
+   "main": "block_size",
+   "preset": {},
+   "params": {
+    "block_size": {
+     "type": "number",
+     "min": 16,
+     "max": 160,
+     "default": 64.0,
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "chaos",
+   "name": "Chaos",
+   "category": "Grunge & Distort",
+   "desc": "broken digital blocks tear the picture apart, harsh glitch",
+   "main": "amount",
+   "preset": {},
+   "params": {
+    "amount": {
+     "type": "number",
+     "min": 20,
+     "max": 100,
+     "default": 60.0,
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "earthquake",
+   "name": "Earthquake",
+   "category": "Grunge & Distort",
+   "desc": "violent shake with motion blur across the cut",
+   "main": "shake",
+   "preset": {},
+   "params": {
+    "shake": {
+     "type": "number",
+     "min": 10,
+     "max": 120,
+     "default": 40.0,
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "flicker",
+   "name": "Flicker",
+   "category": "Grunge & Distort",
+   "desc": "rapid flickering between the two pictures like a bad bulb",
+   "main": "flickers",
+   "preset": {},
+   "params": {
+    "flickers": {
+     "type": "number",
+     "min": 3,
+     "max": 20,
+     "default": 8.0,
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "glass",
+   "name": "Glass",
+   "category": "Grunge & Distort",
+   "desc": "picture shatters into glass cells that refract the next one",
+   "main": "refraction",
+   "preset": {},
+   "params": {
+    "cell_size": {
+     "type": "number",
+     "min": 40,
+     "max": 200,
+     "default": 90.0,
+     "animatable": false
+    },
+    "refraction": {
+     "type": "number",
+     "min": 10,
+     "max": 100,
+     "default": 40.0,
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "glitch",
+   "name": "Glitch",
+   "category": "Grunge & Distort",
+   "desc": "digital glitch: coloured blocks and RGB noise over the cut",
+   "main": "amount",
+   "preset": {},
+   "params": {
+    "amount": {
+     "type": "number",
+     "min": 20,
+     "max": 100,
+     "default": 60.0,
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "grunge",
+   "name": "Grunge",
+   "category": "Grunge & Distort",
+   "desc": "dirty burnt-paper holes eat the picture away",
+   "main": "scale",
+   "preset": {},
+   "params": {
+    "scale": {
+     "type": "number",
+     "min": 60,
+     "max": 300,
+     "default": 120.0,
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "kaleidoscope",
+   "name": "Kaleidoscope",
+   "category": "Grunge & Distort",
+   "desc": "pictures turn into a spinning kaleidoscope mandala",
+   "main": "segments",
+   "preset": {},
+   "params": {
+    "segments": {
+     "type": "number",
+     "min": 3,
+     "max": 12,
+     "default": 6.0,
+     "animatable": false
+    },
+    "zoom": {
+     "type": "number",
+     "min": 10,
+     "max": 60,
+     "default": 30.0,
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "liquid_distortion",
+   "name": "Liquid Distortion",
+   "category": "Grunge & Distort",
+   "desc": "picture melts and wobbles like liquid into the next",
+   "main": "amount",
+   "preset": {},
+   "params": {
+    "amount": {
+     "type": "number",
+     "min": 20,
+     "max": 200,
+     "default": 60.0,
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "tv_power",
+   "name": "TV Power",
+   "category": "Grunge & Distort",
+   "desc": "old TV switching off to a white line and back on",
+   "main": null,
+   "preset": {},
+   "params": {
+    "glow_color": {
+     "type": "color",
+     "animatable": false
+    },
+    "line": {
+     "type": "number",
+     "min": 2,
+     "max": 12,
+     "default": 4.0,
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "vhs_damage",
+   "name": "VHS Damage",
+   "category": "Grunge & Distort",
+   "desc": "VHS tape damage: noise, colour bleed and tracking lines",
+   "main": "amount",
+   "preset": {},
+   "params": {
+    "amount": {
+     "type": "number",
+     "min": 20,
+     "max": 100,
+     "default": 60.0,
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "vr_chroma_leaks",
+   "name": "VR Chroma Leaks",
+   "category": "Immersive Video",
+   "excluded": "VR duplicate of chroma_leak"
+  },
+  {
+   "id": "vr_gradient_wipe",
+   "name": "VR Gradient Wipe",
+   "category": "Immersive Video",
+   "excluded": "VR duplicate of gradient_wipe"
+  },
+  {
+   "id": "vr_iris_wipe",
+   "name": "VR Iris Wipe",
+   "category": "Immersive Video",
+   "excluded": "VR duplicate of iris_round"
+  },
+  {
+   "id": "vr_light_leaks",
+   "name": "VR Light Leaks",
+   "category": "Immersive Video",
+   "excluded": "VR duplicate of light_leak"
+  },
+  {
+   "id": "vr_light_rays",
+   "name": "VR Light Rays",
+   "category": "Immersive Video",
+   "desc": "blinding starburst of light rays from the centre",
+   "main": "amount",
+   "preset": {},
+   "params": {
+    "amount": {
+     "type": "number",
+     "min": 30,
+     "max": 100,
+     "default": 70.0,
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "vr_mobius_zoom",
+   "name": "VR Mobius Zoom",
+   "category": "Immersive Video",
+   "desc": "psychedelic spiral zoom that twists both pictures",
+   "main": "zoom",
+   "preset": {},
+   "params": {
+    "zoom": {
+     "type": "number",
+     "min": 20,
+     "max": 90,
+     "default": 60.0,
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "vr_random_blocks",
+   "name": "VR Random Blocks",
+   "category": "Immersive Video",
+   "desc": "random square blocks switch to the next picture",
+   "main": "block_size",
+   "preset": {},
+   "params": {
+    "block_size": {
+     "type": "number",
+     "min": 40,
+     "max": 240,
+     "default": 80.0,
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "vr_spherical_blur",
+   "name": "VR Spherical Blur",
+   "category": "Immersive Video",
+   "excluded": "VR duplicate of blur_dissolve"
+  },
+  {
+   "id": "burn_chroma",
+   "name": "Burn Chroma",
+   "category": "Lights & Blurs",
+   "desc": "hot colour burn: the cut flares through saturated colour",
+   "main": "amount",
+   "preset": {},
+   "params": {
+    "amount": {
+     "type": "number",
+     "min": 30,
+     "max": 100,
+     "default": 80.0,
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "chroma_leak",
+   "name": "Chroma Leak",
+   "category": "Lights & Blurs",
+   "desc": "rainbow chroma leak washes over the cut",
+   "main": "amount",
+   "preset": {},
+   "params": {
+    "amount": {
+     "type": "number",
+     "min": 30,
+     "max": 100,
+     "default": 70.0,
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "cross_zoom",
+   "name": "Cross Zoom",
+   "category": "Lights & Blurs",
+   "desc": "fast zoom-blur punch into the next picture",
+   "main": "strength",
+   "preset": {},
+   "params": {
+    "strength": {
+     "type": "number",
+     "min": 20,
+     "max": 100,
+     "default": 60.0,
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "directional_blur_transition",
+   "name": "Directional Blur",
+   "category": "Lights & Blurs",
+   "desc": "sideways motion-blur smear between pictures",
+   "main": "blur",
+   "preset": {},
+   "params": {
+    "angle": {
+     "type": "number",
+     "min": 0,
+     "max": 180,
+     "default": 90.0,
+     "animatable": false
+    },
+    "blur": {
+     "type": "number",
+     "min": 40,
+     "max": 400,
+     "default": 160.0,
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "flare",
+   "name": "Flare",
+   "category": "Lights & Blurs",
+   "desc": "warm anamorphic lens flare sweeps across the cut",
+   "main": "amount",
+   "preset": {},
+   "params": {
+    "color": {
+     "type": "color",
+     "animatable": false
+    },
+    "amount": {
+     "type": "number",
+     "min": 30,
+     "max": 100,
+     "default": 80.0,
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "flash",
+   "name": "Flash",
+   "category": "Lights & Blurs",
+   "desc": "bright white camera flash at the cut",
+   "main": "intensity",
+   "preset": {},
+   "params": {
+    "color": {
+     "type": "color",
+     "animatable": false
+    },
+    "intensity": {
+     "type": "number",
+     "min": 40,
+     "max": 100,
+     "default": 100.0,
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "glow",
+   "name": "Glow",
+   "category": "Lights & Blurs",
+   "desc": "everything blooms into glow, then settles on the next picture",
+   "main": "intensity",
+   "preset": {},
+   "params": {
+    "radius": {
+     "type": "number",
+     "min": 10,
+     "max": 120,
+     "default": 40.0,
+     "animatable": false
+    },
+    "intensity": {
+     "type": "number",
+     "min": 30,
+     "max": 100,
+     "default": 80.0,
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "lens_blur",
+   "name": "Lens Blur",
+   "category": "Lights & Blurs",
+   "desc": "defocus out, refocus in (camera lens blur)",
+   "main": "radius",
+   "preset": {},
+   "params": {
+    "radius": {
+     "type": "number",
+     "min": 8,
+     "max": 80,
+     "default": 30.0,
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "light_leak",
+   "name": "Light Leak",
+   "category": "Lights & Blurs",
+   "desc": "warm orange film light leak over the cut",
+   "main": "amount",
+   "preset": {},
+   "params": {
+    "color": {
+     "type": "color",
+     "animatable": false
+    },
+    "amount": {
+     "type": "number",
+     "min": 30,
+     "max": 100,
+     "default": 80.0,
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "light_sweep",
+   "name": "Light Sweep",
+   "category": "Lights & Blurs",
+   "desc": "a bright diagonal light bar sweeps across",
+   "main": "width",
+   "preset": {},
+   "params": {
+    "angle": {
+     "type": "number",
+     "min": 0,
+     "max": 180,
+     "default": 70.0,
+     "animatable": false
+    },
+    "width": {
+     "type": "number",
+     "min": 60,
+     "max": 400,
+     "default": 160.0,
+     "animatable": false
+    },
+    "color": {
+     "type": "color",
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "phosphor",
+   "name": "Phosphor",
+   "category": "Lights & Blurs",
+   "desc": "old CRT phosphor afterglow: outgoing picture lingers as a glow",
+   "main": "decay",
+   "preset": {},
+   "params": {
+    "decay": {
+     "type": "number",
+     "min": 20,
+     "max": 90,
+     "default": 50.0,
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "radial_blur",
+   "name": "Radial Blur",
+   "category": "Lights & Blurs",
+   "desc": "spin blur around the centre into the next picture",
+   "main": "angle",
+   "preset": {},
+   "params": {
+    "angle": {
+     "type": "number",
+     "min": 10,
+     "max": 120,
+     "default": 40.0,
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "ray",
+   "name": "Ray",
+   "category": "Lights & Blurs",
+   "desc": "light rays streak out of the bright parts",
+   "main": "amount",
+   "preset": {},
+   "params": {
+    "amount": {
+     "type": "number",
+     "min": 30,
+     "max": 100,
+     "default": 80.0,
+     "animatable": false
+    },
+    "length": {
+     "type": "number",
+     "min": 20,
+     "max": 90,
+     "default": 50.0,
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "solarize",
+   "name": "Solarize",
+   "category": "Lights & Blurs",
+   "desc": "colours invert and posterize for a moment, psychedelic",
+   "main": "amount",
+   "preset": {},
+   "params": {
+    "amount": {
+     "type": "number",
+     "min": 40,
+     "max": 100,
+     "default": 100.0,
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "stripe",
+   "name": "Stripe",
+   "category": "Lights & Blurs",
+   "desc": "diagonal black-and-white stripes wipe across",
+   "main": "stripes",
+   "preset": {},
+   "params": {
+    "stripes": {
+     "type": "number",
+     "min": 3,
+     "max": 20,
+     "default": 8.0,
+     "animatable": false
+    },
+    "angle": {
+     "type": "number",
+     "min": 0,
+     "max": 180,
+     "default": 30.0,
+     "animatable": false
+    },
+    "color": {
+     "type": "color",
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "zoom_blur",
+   "name": "Zoom Blur",
+   "category": "Lights & Blurs",
+   "desc": "radial zoom blur out of one picture into the next",
+   "main": "strength",
+   "preset": {},
+   "params": {
+    "strength": {
+     "type": "number",
+     "min": 20,
+     "max": 100,
+     "default": 50.0,
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "roll_3d",
+   "name": "3D Roll",
+   "category": "Slide",
+   "desc": "3D cube-like roll from one picture to the next",
+   "main": null,
+   "preset": {},
+   "params": {
+    "direction": {
+     "type": "choice",
+     "options": [
+      "From North",
+      "From East",
+      "From South",
+      "From West"
+     ],
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "film_roll",
+   "name": "Film Roll",
+   "category": "Slide",
+   "desc": "film strip rolls by with sprocket holes between frames",
+   "main": "gap",
+   "preset": {},
+   "params": {
+    "direction": {
+     "type": "choice",
+     "options": [
+      "From North",
+      "From East",
+      "From South",
+      "From West"
+     ],
+     "animatable": false
+    },
+    "gap": {
+     "type": "number",
+     "min": 10,
+     "max": 120,
+     "default": 40.0,
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "push",
+   "name": "Push",
+   "category": "Slide",
+   "desc": "next picture pushes the old one out of frame",
+   "main": null,
+   "preset": {},
+   "params": {
+    "direction": {
+     "type": "choice",
+     "options": [
+      "From North",
+      "From East",
+      "From South",
+      "From West"
+     ],
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "roll",
+   "name": "Roll",
+   "category": "Slide",
+   "desc": "pictures roll past with a slight 3D bend",
+   "main": null,
+   "preset": {},
+   "params": {
+    "direction": {
+     "type": "choice",
+     "options": [
+      "From North",
+      "From East",
+      "From South",
+      "From West"
+     ],
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "slide",
+   "name": "Slide",
+   "category": "Slide",
+   "desc": "next picture slides in over the old one",
+   "main": null,
+   "preset": {},
+   "params": {
+    "direction": {
+     "type": "choice",
+     "options": [
+      "From North",
+      "From East",
+      "From South",
+      "From West"
+     ],
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "split",
+   "name": "Split",
+   "category": "Slide",
+   "desc": "old picture splits in two halves that slide apart",
+   "main": null,
+   "preset": {},
+   "params": {
+    "orientation": {
+     "type": "choice",
+     "options": [
+      "Horizontal",
+      "Vertical"
+     ],
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "stretch",
+   "name": "Stretch",
+   "category": "Slide",
+   "desc": "next picture stretches in from one edge",
+   "main": null,
+   "preset": {},
+   "params": {
+    "direction": {
+     "type": "choice",
+     "options": [
+      "From North",
+      "From East",
+      "From South",
+      "From West"
+     ],
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "whip",
+   "name": "Whip",
+   "category": "Slide",
+   "desc": "fast whip-pan with heavy motion blur",
+   "main": "blur",
+   "preset": {},
+   "params": {
+    "direction": {
+     "type": "choice",
+     "options": [
+      "From North",
+      "From East",
+      "From South",
+      "From West"
+     ],
+     "animatable": false
+    },
+    "blur": {
+     "type": "number",
+     "min": 40,
+     "max": 100,
+     "default": 80.0,
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "motion_camera",
+   "name": "Motion Camera",
+   "category": "Smart Tools",
+   "desc": "virtual camera zooms and rotates between the two pictures",
+   "main": "zoom",
+   "preset": {},
+   "params": {
+    "zoom": {
+     "type": "number",
+     "min": 10,
+     "max": 120,
+     "default": 40.0,
+     "animatable": false
+    },
+    "rotation": {
+     "type": "number",
+     "min": -90,
+     "max": 90,
+     "default": 8.0,
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "motion_tween",
+   "name": "Motion Tween",
+   "category": "Smart Tools",
+   "desc": "gentle scale tween that blends the pictures",
+   "main": "scale",
+   "preset": {},
+   "params": {
+    "scale": {
+     "type": "number",
+     "min": 5,
+     "max": 50,
+     "default": 15.0,
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "shape_dissolve",
+   "name": "Shape Dissolve",
+   "category": "Smart Tools",
+   "desc": "dissolve through many small shapes (circles, stars, hearts...)",
+   "main": "size",
+   "preset": {},
+   "params": {
+    "shape": {
+     "type": "choice",
+     "options": [
+      "Circle",
+      "Square",
+      "Diamond",
+      "Star",
+      "Heart",
+      "Triangle"
+     ],
+     "animatable": false
+    },
+    "size": {
+     "type": "number",
+     "min": 40,
+     "max": 300,
+     "default": 120.0,
+     "animatable": false
+    },
+    "order": {
+     "type": "choice",
+     "options": [
+      "Random",
+      "Left to Right",
+      "Center Out"
+     ],
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "shape_flow",
+   "name": "Shape Flow",
+   "category": "Smart Tools",
+   "desc": "one big shape (circle, star, heart...) grows to reveal the next picture",
+   "main": null,
+   "preset": {},
+   "params": {
+    "shape": {
+     "type": "choice",
+     "options": [
+      "Circle",
+      "Square",
+      "Diamond",
+      "Star",
+      "Heart",
+      "Triangle"
+     ],
+     "animatable": false
+    },
+    "direction": {
+     "type": "choice",
+     "options": [
+      "From North",
+      "From East",
+      "From South",
+      "From West"
+     ],
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "text_animator",
+   "name": "Text Animator",
+   "category": "Text",
+   "excluded": "text-clip transition (works on text graphics, not pictures)"
+  },
+  {
+   "id": "typewriter",
+   "name": "Typewriter",
+   "category": "Text",
+   "excluded": "text-clip transition (works on text graphics, not pictures)"
+  },
+  {
+   "id": "spin_3d",
+   "name": "3D Spin",
+   "category": "Transformers",
+   "desc": "picture spins in 3D around its axis, revealing the next on the back",
+   "main": null,
+   "preset": {},
+   "params": {
+    "direction": {
+     "type": "choice",
+     "options": [
+      "From North",
+      "From East",
+      "From South",
+      "From West"
+     ],
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "spinback_3d",
+   "name": "3D Spinback",
+   "category": "Transformers",
+   "desc": "picture swings back into depth and the next swings forward",
+   "main": "depth",
+   "preset": {},
+   "params": {
+    "direction": {
+     "type": "choice",
+     "options": [
+      "From North",
+      "From East",
+      "From South",
+      "From West"
+     ],
+     "animatable": false
+    },
+    "depth": {
+     "type": "number",
+     "min": 20,
+     "max": 90,
+     "default": 60.0,
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "frame",
+   "name": "Frame",
+   "category": "Transformers",
+   "desc": "pictures shrink into a white-bordered frame and swap",
+   "main": "frame_width",
+   "preset": {},
+   "params": {
+    "frame_width": {
+     "type": "number",
+     "min": 8,
+     "max": 60,
+     "default": 24.0,
+     "animatable": false
+    },
+    "frame_color": {
+     "type": "color",
+     "animatable": false
+    },
+    "scale": {
+     "type": "number",
+     "min": 40,
+     "max": 85,
+     "default": 60.0,
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "louver",
+   "name": "Louver",
+   "category": "Transformers",
+   "desc": "horizontal blinds (louvers) flip open to the next picture",
+   "main": "slats",
+   "preset": {},
+   "params": {
+    "slats": {
+     "type": "number",
+     "min": 4,
+     "max": 24,
+     "default": 8.0,
+     "animatable": false
+    },
+    "orientation": {
+     "type": "choice",
+     "options": [
+      "Horizontal",
+      "Vertical"
+     ],
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "mirror_transition",
+   "name": "Mirror",
+   "category": "Transformers",
+   "desc": "mirrored split that folds into the next picture",
+   "main": null,
+   "preset": {},
+   "params": {
+    "direction": {
+     "type": "choice",
+     "options": [
+      "From North",
+      "From East",
+      "From South",
+      "From West"
+     ],
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "page_peel",
+   "name": "Page Peel",
+   "category": "Transformers",
+   "desc": "the corner peels like paper to reveal the next picture",
+   "main": "radius",
+   "preset": {},
+   "params": {
+    "corner": {
+     "type": "choice",
+     "options": [
+      "Top Left",
+      "Top Right",
+      "Bottom Right",
+      "Bottom Left"
+     ],
+     "animatable": false
+    },
+    "radius": {
+     "type": "number",
+     "min": 30,
+     "max": 200,
+     "default": 60.0,
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "slice",
+   "name": "Slice",
+   "category": "Transformers",
+   "desc": "diagonal slices slide in different directions",
+   "main": "slices",
+   "preset": {},
+   "params": {
+    "slices": {
+     "type": "number",
+     "min": 3,
+     "max": 20,
+     "default": 8.0,
+     "animatable": false
+    },
+    "angle": {
+     "type": "number",
+     "min": 0,
+     "max": 180,
+     "default": 20.0,
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "wave",
+   "name": "Wave",
+   "category": "Transformers",
+   "desc": "a wave ripples through and carries the next picture in",
+   "main": "amplitude",
+   "preset": {},
+   "params": {
+    "direction": {
+     "type": "choice",
+     "options": [
+      "From North",
+      "From East",
+      "From South",
+      "From West"
+     ],
+     "animatable": false
+    },
+    "amplitude": {
+     "type": "number",
+     "min": 20,
+     "max": 200,
+     "default": 60.0,
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "clock_wipe",
+   "name": "Clock Wipe",
+   "category": "Wipe",
+   "desc": "clock-hand sweep reveals the next picture",
+   "main": null,
+   "preset": {},
+   "params": {
+    "feather": {
+     "type": "number",
+     "min": 0,
+     "max": 80,
+     "default": 0.0,
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "linear_wipe",
+   "name": "Linear Wipe",
+   "category": "Wipe",
+   "desc": "straight wipe line moves across",
+   "main": "feather",
+   "preset": {},
+   "params": {
+    "angle": {
+     "type": "number",
+     "min": 0,
+     "max": 360,
+     "default": 90.0,
+     "animatable": false
+    },
+    "feather": {
+     "type": "number",
+     "min": 0,
+     "max": 200,
+     "default": 0.0,
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "neon_wipe",
+   "name": "Neon Wipe",
+   "category": "Wipe",
+   "desc": "glowing neon line wipes across",
+   "main": "glow",
+   "preset": {},
+   "params": {
+    "angle": {
+     "type": "number",
+     "min": 0,
+     "max": 360,
+     "default": 90.0,
+     "animatable": false
+    },
+    "color": {
+     "type": "color",
+     "animatable": false
+    },
+    "glow": {
+     "type": "number",
+     "min": 10,
+     "max": 120,
+     "default": 40.0,
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "panel_wipe",
+   "name": "Panel Wipe",
+   "category": "Wipe",
+   "desc": "staggered panels wipe in like a blocky curtain",
+   "main": "panels",
+   "preset": {},
+   "params": {
+    "direction": {
+     "type": "choice",
+     "options": [
+      "From North",
+      "From East",
+      "From South",
+      "From West"
+     ],
+     "animatable": false
+    },
+    "panels": {
+     "type": "number",
+     "min": 2,
+     "max": 16,
+     "default": 6.0,
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "plateau_wipe",
+   "name": "Plateau Wipe",
+   "category": "Wipe",
+   "desc": "stepped plateau-shaped wipe",
+   "main": "plateaus",
+   "preset": {},
+   "params": {
+    "angle": {
+     "type": "number",
+     "min": 0,
+     "max": 360,
+     "default": 90.0,
+     "animatable": false
+    },
+    "plateaus": {
+     "type": "number",
+     "min": 2,
+     "max": 12,
+     "default": 5.0,
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "radial_wipe",
+   "name": "Radial Wipe",
+   "category": "Wipe",
+   "desc": "radial wipe sweeping from a corner",
+   "main": null,
+   "preset": {},
+   "params": {
+    "corner": {
+     "type": "choice",
+     "options": [
+      "Top Left",
+      "Top Right",
+      "Bottom Right",
+      "Bottom Left"
+     ],
+     "animatable": false
+    },
+    "feather": {
+     "type": "number",
+     "min": 0,
+     "max": 80,
+     "default": 0.0,
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "soft_wipe",
+   "name": "Soft Wipe",
+   "category": "Wipe",
+   "desc": "very soft gradient wipe, almost a directional dissolve",
+   "main": "feather",
+   "preset": {},
+   "params": {
+    "angle": {
+     "type": "number",
+     "min": 0,
+     "max": 360,
+     "default": 90.0,
+     "animatable": false
+    },
+    "feather": {
+     "type": "number",
+     "min": 100,
+     "max": 800,
+     "default": 300.0,
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "star_wipe",
+   "name": "Star Wipe",
+   "category": "Wipe",
+   "desc": "growing star shape reveals the next picture (cheesy on purpose)",
+   "main": "points",
+   "preset": {},
+   "params": {
+    "points": {
+     "type": "number",
+     "min": 4,
+     "max": 10,
+     "default": 5.0,
+     "animatable": false
+    },
+    "border_width": {
+     "type": "number",
+     "min": 0,
+     "max": 20,
+     "default": 0.0,
+     "animatable": false
+    },
+    "border_color": {
+     "type": "color",
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "stretch_wipe",
+   "name": "Stretch Wipe",
+   "category": "Wipe",
+   "desc": "picture stretches and smears out of frame",
+   "main": "stretch",
+   "preset": {},
+   "params": {
+    "direction": {
+     "type": "choice",
+     "options": [
+      "From North",
+      "From East",
+      "From South",
+      "From West"
+     ],
+     "animatable": false
+    },
+    "stretch": {
+     "type": "number",
+     "min": 60,
+     "max": 600,
+     "default": 200.0,
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "additive_dissolve_legacy",
+   "name": "Additive Dissolve (Legacy)",
+   "category": "Video Transitions",
+   "excluded": "legacy duplicate"
+  },
+  {
+   "id": "barn_doors",
+   "name": "Barn Doors",
+   "category": "Video Transitions",
+   "desc": "barn doors open from the middle",
+   "main": null,
+   "preset": {},
+   "params": {
+    "orientation": {
+     "type": "choice",
+     "options": [
+      "Horizontal",
+      "Vertical"
+     ],
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "center_split",
+   "name": "Center Split",
+   "category": "Video Transitions",
+   "desc": "picture splits into four quarters that slide to the corners",
+   "main": null,
+   "preset": {},
+   "params": {}
+  },
+  {
+   "id": "clock_wipe_legacy",
+   "name": "Clock Wipe (Legacy)",
+   "category": "Video Transitions",
+   "excluded": "legacy duplicate"
+  },
+  {
+   "id": "cross_dissolve_legacy",
+   "name": "Cross Dissolve (Legacy)",
+   "category": "Video Transitions",
+   "excluded": "legacy duplicate"
+  },
+  {
+   "id": "cross_zoom_legacy",
+   "name": "Cross Zoom (Legacy)",
+   "category": "Video Transitions",
+   "excluded": "legacy duplicate"
+  },
+  {
+   "id": "dip_to_black_legacy",
+   "name": "Dip to Black (Legacy)",
+   "category": "Video Transitions",
+   "excluded": "legacy duplicate"
+  },
+  {
+   "id": "dip_to_white_legacy",
+   "name": "Dip to White (Legacy)",
+   "category": "Video Transitions",
+   "excluded": "legacy duplicate"
+  },
+  {
+   "id": "film_dissolve_legacy",
+   "name": "Film Dissolve (Legacy)",
+   "category": "Video Transitions",
+   "excluded": "legacy duplicate"
+  },
+  {
+   "id": "inset",
+   "name": "Inset",
+   "category": "Video Transitions",
+   "desc": "next picture grows from a corner as a rectangle",
+   "main": null,
+   "preset": {},
+   "params": {
+    "corner": {
+     "type": "choice",
+     "options": [
+      "Top Left",
+      "Top Right",
+      "Bottom Right",
+      "Bottom Left"
+     ],
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "iris_box",
+   "name": "Iris Box",
+   "category": "Video Transitions",
+   "desc": "rectangle iris opens from the centre",
+   "main": null,
+   "preset": {},
+   "params": {}
+  },
+  {
+   "id": "iris_cross",
+   "name": "Iris Cross",
+   "category": "Video Transitions",
+   "desc": "cross-shaped iris opens from the centre",
+   "main": null,
+   "preset": {},
+   "params": {}
+  },
+  {
+   "id": "iris_diamond",
+   "name": "Iris Diamond",
+   "category": "Video Transitions",
+   "desc": "diamond iris opens from the centre",
+   "main": null,
+   "preset": {},
+   "params": {}
+  },
+  {
+   "id": "iris_round",
+   "name": "Iris Round",
+   "category": "Video Transitions",
+   "desc": "round iris opens from the centre (old cinema)",
+   "main": null,
+   "preset": {},
+   "params": {}
+  },
+  {
+   "id": "non_additive_dissolve",
+   "name": "Non-Additive Dissolve",
+   "category": "Video Transitions",
+   "desc": "dissolve where the brighter picture wins pixel by pixel, contrasty",
+   "main": null,
+   "preset": {},
+   "params": {}
+  },
+  {
+   "id": "push_legacy",
+   "name": "Push (Legacy)",
+   "category": "Video Transitions",
+   "excluded": "legacy duplicate"
+  },
+  {
+   "id": "radial_wipe_legacy",
+   "name": "Radial Wipe (Legacy)",
+   "category": "Video Transitions",
+   "excluded": "legacy duplicate"
+  },
+  {
+   "id": "slide_legacy",
+   "name": "Slide (Legacy)",
+   "category": "Video Transitions",
+   "excluded": "legacy duplicate"
+  },
+  {
+   "id": "split_legacy",
+   "name": "Split (Legacy)",
+   "category": "Video Transitions",
+   "excluded": "legacy duplicate"
+  },
+  {
+   "id": "whip_legacy",
+   "name": "Whip (Legacy)",
+   "category": "Video Transitions",
+   "excluded": "legacy duplicate"
+  },
+  {
+   "id": "wipe",
+   "name": "Wipe",
+   "category": "Video Transitions",
+   "desc": "plain hard-edged wipe",
+   "main": null,
+   "preset": {},
+   "params": {
+    "direction": {
+     "type": "choice",
+     "options": [
+      "From North",
+      "From East",
+      "From South",
+      "From West"
+     ],
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "band_slide",
+   "name": "Band Slide",
+   "category": "Video Transitions",
+   "desc": "horizontal bands slide in from alternating sides",
+   "main": null,
+   "preset": {},
+   "params": {}
+  },
+  {
+   "id": "checker_wipe",
+   "name": "Checker Wipe",
+   "category": "Video Transitions",
+   "desc": "checkerboard of small cells wipes across",
+   "main": null,
+   "preset": {},
+   "params": {}
+  },
+  {
+   "id": "cube_spin",
+   "name": "Cube Spin",
+   "category": "Video Transitions",
+   "desc": "3D cube rotation from one face to the next",
+   "main": null,
+   "preset": {},
+   "params": {}
+  },
+  {
+   "id": "flip_over",
+   "name": "Flip Over",
+   "category": "Video Transitions",
+   "desc": "picture flips over in 3D, black behind",
+   "main": null,
+   "preset": {},
+   "params": {}
+  },
+  {
+   "id": "gradient_wipe",
+   "name": "Gradient Wipe",
+   "category": "Video Transitions",
+   "desc": "soft diagonal gradient wipe",
+   "main": "softness",
+   "preset": {},
+   "params": {
+    "softness": {
+     "type": "number",
+     "min": 0,
+     "max": 60,
+     "default": 10.0,
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "page_turn",
+   "name": "Page Turn",
+   "category": "Video Transitions",
+   "desc": "page turns from the corner like a book",
+   "main": null,
+   "preset": {},
+   "params": {}
+  },
+  {
+   "id": "venetian_blinds",
+   "name": "Venetian Blinds",
+   "category": "Video Transitions",
+   "desc": "venetian blinds close and reopen on the next picture",
+   "main": null,
+   "preset": {},
+   "params": {}
+  }
+ ],
+ "effects": [
+  {
+   "id": "motion",
+   "name": "Motion",
+   "category": "Other",
+   "excluded": "use `camera`"
+  },
+  {
+   "id": "opacity",
+   "name": "Opacity",
+   "category": "Other",
+   "excluded": "handled by the harness"
+  },
+  {
+   "id": "time_remap",
+   "name": "Time Remapping",
+   "category": "Other",
+   "excluded": "use `speed`"
+  },
+  {
+   "id": "brightness_contrast",
+   "name": "Brightness & Contrast",
+   "category": "Color Correction",
+   "excluded": "covered by `grade`"
+  },
+  {
+   "id": "tint",
+   "name": "Tint",
+   "category": "Color Correction",
+   "desc": "duotone: darks and lights mapped to two colours",
+   "main": "amount",
+   "preset": {
+    "black": "#1b1340",
+    "white": "#ffcf6e",
+    "amount": 85
+   },
+   "params": {
+    "black": {
+     "type": "color",
+     "animatable": true
+    },
+    "white": {
+     "type": "color",
+     "animatable": true
+    },
+    "amount": {
+     "type": "number",
+     "min": 30,
+     "max": 100,
+     "default": 100.0,
+     "animatable": true
+    }
+   }
+  },
+  {
+   "id": "color_balance",
+   "name": "Color Balance",
+   "category": "Obsolete",
+   "excluded": "obsolete, covered by `grade`"
+  },
+  {
+   "id": "three_way_color",
+   "name": "Three-Way Color Corrector",
+   "category": "Obsolete",
+   "excluded": "obsolete, covered by `grade`"
+  },
+  {
+   "id": "leave_color",
+   "name": "Leave Color",
+   "category": "Obsolete",
+   "excluded": "obsolete duplicate of color_pass"
+  },
+  {
+   "id": "change_to_color",
+   "name": "Change to Color",
+   "category": "Obsolete",
+   "excluded": "obsolete, needs exact source colour"
+  },
+  {
+   "id": "lumetri",
+   "name": "Color Grading",
+   "category": "Color Correction",
+   "excluded": "use `grade`"
+  },
+  {
+   "id": "gaussian_blur",
+   "name": "Gaussian Blur",
+   "category": "Blur & Sharpen",
+   "desc": "soft blur over the whole picture; animate it from high to 0 for a focus pull",
+   "main": "blurriness",
+   "preset": {
+    "blurriness": 20
+   },
+   "params": {
+    "blurriness": {
+     "type": "number",
+     "min": 0,
+     "max": 60,
+     "default": 0.0,
+     "animatable": true
+    }
+   }
+  },
+  {
+   "id": "directional_blur",
+   "name": "Directional Blur",
+   "category": "Blur & Sharpen",
+   "desc": "motion-blur smear in one direction (speed feeling)",
+   "main": "length",
+   "preset": {
+    "direction": 90,
+    "length": 25
+   },
+   "params": {
+    "direction": {
+     "type": "number",
+     "min": 0,
+     "max": 180,
+     "default": 0.0,
+     "animatable": true
+    },
+    "length": {
+     "type": "number",
+     "min": 0,
+     "max": 60,
+     "default": 0.0,
+     "animatable": true
+    }
+   }
+  },
+  {
+   "id": "sharpen",
+   "name": "Sharpen",
+   "category": "Blur & Sharpen",
+   "desc": "crisper edges and texture",
+   "main": "amount",
+   "preset": {
+    "amount": 40
+   },
+   "params": {
+    "amount": {
+     "type": "number",
+     "min": 0,
+     "max": 80,
+     "default": 0.0,
+     "animatable": true
+    }
+   }
+  },
+  {
+   "id": "unsharp_mask",
+   "name": "Unsharp Mask",
+   "category": "Blur & Sharpen",
+   "excluded": "duplicate of sharpen"
+  },
+  {
+   "id": "camera_blur",
+   "name": "Camera Blur",
+   "category": "Video Effects",
+   "desc": "out-of-focus camera lens blur",
+   "main": "percent",
+   "preset": {
+    "percent": 15
+   },
+   "params": {
+    "percent": {
+     "type": "number",
+     "min": 0,
+     "max": 40,
+     "default": 0.0,
+     "animatable": true
+    }
+   }
+  },
+  {
+   "id": "black_white",
+   "name": "Black & White",
+   "category": "Image Control",
+   "desc": "plain black-and-white",
+   "main": null,
+   "preset": {},
+   "params": {}
+  },
+  {
+   "id": "color_pass",
+   "name": "Color Pass",
+   "category": "Image Control",
+   "desc": "keeps one colour, everything else goes grey (Sin City look)",
+   "main": "similarity",
+   "preset": {
+    "color": "#e03030",
+    "similarity": 25
+   },
+   "params": {
+    "color": {
+     "type": "color",
+     "animatable": true
+    },
+    "similarity": {
+     "type": "number",
+     "min": 10,
+     "max": 50,
+     "default": 10.0,
+     "animatable": true
+    }
+   }
+  },
+  {
+   "id": "gamma_correction",
+   "name": "Gamma Correction",
+   "category": "Image Control",
+   "excluded": "covered by `grade`"
+  },
+  {
+   "id": "invert",
+   "name": "Invert",
+   "category": "Image Control",
+   "desc": "photo negative",
+   "main": "blend",
+   "preset": {},
+   "params": {
+    "blend": {
+     "type": "number",
+     "min": 0,
+     "max": 80,
+     "default": 0.0,
+     "animatable": true
+    }
+   }
+  },
+  {
+   "id": "levels",
+   "name": "Levels",
+   "category": "Adjust",
+   "excluded": "covered by `grade`"
+  },
+  {
+   "id": "proc_amp",
+   "name": "ProcAmp",
+   "category": "Adjust",
+   "excluded": "covered by `grade`"
+  },
+  {
+   "id": "extract",
+   "name": "Extract",
+   "category": "Adjust",
+   "excluded": "technical luma key"
+  },
+  {
+   "id": "posterize",
+   "name": "Posterize",
+   "category": "Stylize",
+   "desc": "flat poster colours, fewer tones",
+   "main": "levels",
+   "preset": {
+    "levels": 6
+   },
+   "params": {
+    "levels": {
+     "type": "number",
+     "min": 3,
+     "max": 16,
+     "default": 7.0,
+     "animatable": true
+    }
+   }
+  },
+  {
+   "id": "mosaic",
+   "name": "Mosaic",
+   "category": "Stylize",
+   "desc": "pixelate into big square blocks (8-bit / censorship)",
+   "main": "horizontal",
+   "preset": {
+    "horizontal": 60,
+    "sharp": true
+   },
+   "params": {
+    "horizontal": {
+     "type": "number",
+     "min": 12,
+     "max": 200,
+     "default": 10.0,
+     "animatable": true
+    }
+   }
+  },
+  {
+   "id": "find_edges",
+   "name": "Find Edges",
+   "category": "Stylize",
+   "desc": "line-art sketch: only the edges stay",
+   "main": "blend",
+   "preset": {
+    "blend": 20
+   },
+   "params": {
+    "blend": {
+     "type": "number",
+     "min": 0,
+     "max": 70,
+     "default": 0.0,
+     "animatable": true
+    },
+    "invert": {
+     "type": "bool",
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "emboss",
+   "name": "Emboss",
+   "category": "Obsolete",
+   "excluded": "obsolete duplicate of color_emboss"
+  },
+  {
+   "id": "replicate",
+   "name": "Replicate",
+   "category": "Video Effects",
+   "excluded": "duplicate of clone"
+  },
+  {
+   "id": "strobe",
+   "name": "Strobe Light",
+   "category": "Stylize",
+   "desc": "stroboscope: the picture flashes a colour at a fixed period",
+   "main": "period",
+   "preset": {
+    "color": "#ffffff",
+    "duration": 0.05,
+    "period": 0.4
+   },
+   "params": {
+    "color": {
+     "type": "color",
+     "animatable": true
+    },
+    "duration": {
+     "type": "number",
+     "min": 0.03,
+     "max": 0.15,
+     "default": 0.05,
+     "animatable": true
+    },
+    "period": {
+     "type": "number",
+     "min": 0.15,
+     "max": 1.0,
+     "default": 0.5,
+     "animatable": true
+    }
+   }
+  },
+  {
+   "id": "noise",
+   "name": "Noise",
+   "category": "Noise & Grain",
+   "desc": "film grain / video noise",
+   "main": "amount",
+   "preset": {
+    "amount": 18
+   },
+   "params": {
+    "amount": {
+     "type": "number",
+     "min": 5,
+     "max": 45,
+     "default": 0.0,
+     "animatable": true
+    },
+    "grain_size": {
+     "type": "number",
+     "min": 1,
+     "max": 4,
+     "default": 1.0,
+     "animatable": true
+    },
+    "color": {
+     "type": "bool",
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "median",
+   "name": "Median",
+   "category": "Obsolete",
+   "excluded": "obsolete smoothing"
+  },
+  {
+   "id": "crop",
+   "name": "Crop",
+   "category": "Video Effects",
+   "desc": "cinematic letterbox: black bars top/bottom (or sides)",
+   "main": "top",
+   "preset": {
+    "top": 12,
+    "bottom": 12
+   },
+   "params": {
+    "top": {
+     "type": "number",
+     "min": 0,
+     "max": 25,
+     "default": 0.0,
+     "animatable": true
+    },
+    "bottom": {
+     "type": "number",
+     "min": 0,
+     "max": 25,
+     "default": 0.0,
+     "animatable": true
+    },
+    "left": {
+     "type": "number",
+     "min": 0,
+     "max": 25,
+     "default": 0.0,
+     "animatable": true
+    },
+    "right": {
+     "type": "number",
+     "min": 0,
+     "max": 25,
+     "default": 0.0,
+     "animatable": true
+    }
+   }
+  },
+  {
+   "id": "horizontal_flip",
+   "name": "Horizontal Flip",
+   "category": "Transform",
+   "desc": "mirror the picture left-right",
+   "main": null,
+   "preset": {},
+   "params": {}
+  },
+  {
+   "id": "vertical_flip",
+   "name": "Vertical Flip",
+   "category": "Transform",
+   "desc": "upside-down picture",
+   "main": null,
+   "preset": {},
+   "params": {}
+  },
+  {
+   "id": "edge_feather",
+   "name": "Edge Feather",
+   "category": "Video Effects",
+   "desc": "soft dark fade around the frame edges",
+   "main": "amount",
+   "preset": {
+    "amount": 15
+   },
+   "params": {
+    "amount": {
+     "type": "number",
+     "min": 5,
+     "max": 40,
+     "default": 0.0,
+     "animatable": true
+    }
+   }
+  },
+  {
+   "id": "transform",
+   "name": "Transform",
+   "category": "Transform",
+   "desc": "skew / rotate the picture (slanted, off-kilter)",
+   "main": "skew",
+   "preset": {
+    "skew": 8
+   },
+   "params": {
+    "skew": {
+     "type": "number",
+     "min": -20,
+     "max": 20,
+     "default": 0.0,
+     "animatable": true
+    },
+    "rotation": {
+     "type": "number",
+     "min": -15,
+     "max": 15,
+     "default": 0.0,
+     "animatable": true
+    }
+   }
+  },
+  {
+   "id": "mirror",
+   "name": "Mirror",
+   "category": "Distort",
+   "desc": "mirror the picture along a line through the centre (symmetry)",
+   "main": "angle",
+   "preset": {
+    "center": [
+     0.5,
+     0.5
+    ],
+    "angle": 90
+   },
+   "params": {
+    "angle": {
+     "type": "number",
+     "min": 0,
+     "max": 180,
+     "default": 0.0,
+     "animatable": true
+    }
+   }
+  },
+  {
+   "id": "offset",
+   "name": "Offset",
+   "category": "Transform",
+   "excluded": "use `camera`"
+  },
+  {
+   "id": "lens_distortion",
+   "name": "Lens Distortion",
+   "category": "Distort",
+   "desc": "fisheye bulge (negative) or pinch (positive) lens",
+   "main": "curvature",
+   "preset": {
+    "curvature": -35
+   },
+   "params": {
+    "curvature": {
+     "type": "number",
+     "min": -60,
+     "max": 40,
+     "default": 0.0,
+     "animatable": true
+    }
+   }
+  },
+  {
+   "id": "twirl",
+   "name": "Twirl",
+   "category": "Distort",
+   "desc": "swirl around the centre",
+   "main": "angle",
+   "preset": {
+    "angle": 120,
+    "radius": 40
+   },
+   "params": {
+    "angle": {
+     "type": "number",
+     "min": -240,
+     "max": 240,
+     "default": 50.0,
+     "animatable": true
+    },
+    "radius": {
+     "type": "number",
+     "min": 10,
+     "max": 70,
+     "default": 30.0,
+     "animatable": true
+    }
+   }
+  },
+  {
+   "id": "wave_warp",
+   "name": "Wave Warp",
+   "category": "Distort",
+   "desc": "wavy water-like distortion that moves",
+   "main": "height",
+   "preset": {
+    "height": 14,
+    "width": 140,
+    "speed": 1
+   },
+   "params": {
+    "height": {
+     "type": "number",
+     "min": 4,
+     "max": 40,
+     "default": 10.0,
+     "animatable": true
+    },
+    "width": {
+     "type": "number",
+     "min": 40,
+     "max": 300,
+     "default": 40.0,
+     "animatable": true
+    },
+    "speed": {
+     "type": "number",
+     "min": 0,
+     "max": 3,
+     "default": 1.0,
+     "animatable": true
+    }
+   }
+  },
+  {
+   "id": "basic_3d",
+   "name": "Basic 3D",
+   "category": "Perspective",
+   "excluded": "duplicate of rotate_3d"
+  },
+  {
+   "id": "drop_shadow",
+   "name": "Drop Shadow",
+   "category": "Perspective",
+   "excluded": "needs transparency (pictures are opaque)"
+  },
+  {
+   "id": "bevel_alpha",
+   "name": "Bevel Alpha",
+   "category": "Obsolete",
+   "excluded": "needs transparency"
+  },
+  {
+   "id": "ultra_key",
+   "name": "Ultra Key",
+   "category": "Keying",
+   "excluded": "green-screen keying"
+  },
+  {
+   "id": "track_matte",
+   "name": "Track Matte Key",
+   "category": "Keying",
+   "excluded": "matte compositing"
+  },
+  {
+   "id": "color_key",
+   "name": "Color Key",
+   "category": "Keying",
+   "excluded": "keying"
+  },
+  {
+   "id": "luma_key",
+   "name": "Luma Key",
+   "category": "Keying",
+   "excluded": "keying"
+  },
+  {
+   "id": "four_color_gradient",
+   "name": "4-Color Gradient",
+   "category": "Generate",
+   "desc": "colourful four-corner gradient washed over the picture",
+   "main": "opacity",
+   "preset": {
+    "opacity": 35,
+    "blend": 300
+   },
+   "params": {
+    "opacity": {
+     "type": "number",
+     "min": 15,
+     "max": 60,
+     "default": 100.0,
+     "animatable": true
+    }
+   }
+  },
+  {
+   "id": "ramp",
+   "name": "Ramp",
+   "category": "Video Effects",
+   "excluded": "generator that replaces the picture"
+  },
+  {
+   "id": "circle",
+   "name": "Circle",
+   "category": "Obsolete",
+   "excluded": "obsolete generator"
+  },
+  {
+   "id": "grid",
+   "name": "Grid",
+   "category": "Obsolete",
+   "excluded": "obsolete generator"
+  },
+  {
+   "id": "lens_flare",
+   "name": "Lens Flare",
+   "category": "Lights & Glows",
+   "desc": "bright lens flare at a point (sun, lamp, magic)",
+   "main": "brightness",
+   "preset": {
+    "center": [
+     0.3,
+     0.2
+    ],
+    "brightness": 140
+   },
+   "params": {
+    "center": {
+     "type": "point",
+     "animatable": true
+    },
+    "brightness": {
+     "type": "number",
+     "min": 60,
+     "max": 180,
+     "default": 100.0,
+     "animatable": true
+    },
+    "size": {
+     "type": "number",
+     "min": 50,
+     "max": 200,
+     "default": 100.0,
+     "animatable": true
+    },
+    "lens_type": {
+     "type": "choice",
+     "options": [
+      "50-300mm Zoom",
+      "35mm Prime",
+      "105mm Prime",
+      "Anamorphic"
+     ],
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "timecode",
+   "name": "Timecode",
+   "category": "Obsolete",
+   "excluded": "timecode burn-in"
+  },
+  {
+   "id": "clip_name",
+   "name": "Clip Name",
+   "category": "Obsolete",
+   "excluded": "clip name burn-in"
+  },
+  {
+   "id": "simple_text",
+   "name": "Simple Text",
+   "category": "Utility",
+   "excluded": "captions are separate"
+  },
+  {
+   "id": "lighting_effects",
+   "name": "Lighting Effects",
+   "category": "Adjust",
+   "excluded": "too many parameters for one line"
+  },
+  {
+   "id": "bokeh_blur",
+   "name": "Bokeh Blur",
+   "category": "Blur & Sharpen",
+   "desc": "dreamy defocus with round bokeh highlights",
+   "main": "amount",
+   "preset": {
+    "amount": 14
+   },
+   "params": {
+    "amount": {
+     "type": "number",
+     "min": 4,
+     "max": 40,
+     "default": 10.0,
+     "animatable": true
+    },
+    "shape": {
+     "type": "choice",
+     "options": [
+      "Circle",
+      "Hexagon",
+      "Octagon"
+     ],
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "channel_blur",
+   "name": "Channel Blur",
+   "category": "Blur & Sharpen",
+   "excluded": "technical per-channel blur"
+  },
+  {
+   "id": "compound_blur",
+   "name": "Compound Blur",
+   "category": "Blur & Sharpen",
+   "excluded": "needs a blur-map track"
+  },
+  {
+   "id": "focus_blur",
+   "name": "Focus Blur",
+   "category": "Blur & Sharpen",
+   "desc": "tilt-shift miniature: sharp band in the middle, blurred top and bottom",
+   "main": "amount",
+   "preset": {
+    "shape": "Linear",
+    "size": 450,
+    "feather": 300,
+    "amount": 22
+   },
+   "params": {
+    "shape": {
+     "type": "choice",
+     "options": [
+      "Linear",
+      "Radial"
+     ],
+     "animatable": false
+    },
+    "size": {
+     "type": "number",
+     "min": 150,
+     "max": 900,
+     "default": 200.0,
+     "animatable": true
+    },
+    "amount": {
+     "type": "number",
+     "min": 5,
+     "max": 40,
+     "default": 20.0,
+     "animatable": true
+    }
+   }
+  },
+  {
+   "id": "reduce_interlace_flicker",
+   "name": "Reduce Interlace Flicker",
+   "category": "Blur & Sharpen",
+   "excluded": "technical (interlacing)"
+  },
+  {
+   "id": "asc_cdl",
+   "name": "ASC CDL",
+   "category": "Color Correction",
+   "excluded": "covered by `grade`"
+  },
+  {
+   "id": "video_limiter",
+   "name": "Video Limiter",
+   "category": "Color Correction",
+   "excluded": "technical broadcast limiter"
+  },
+  {
+   "id": "vignette",
+   "name": "Vignette",
+   "category": "Color Correction",
+   "desc": "darkened corners that pull the eye to the centre (positive amount = white vignette)",
+   "main": "amount",
+   "preset": {
+    "amount": -55
+   },
+   "params": {
+    "amount": {
+     "type": "number",
+     "min": -80,
+     "max": 60,
+     "default": -50.0,
+     "animatable": true
+    },
+    "midpoint": {
+     "type": "number",
+     "min": 20,
+     "max": 80,
+     "default": 50.0,
+     "animatable": true
+    },
+    "feather": {
+     "type": "number",
+     "min": 30,
+     "max": 90,
+     "default": 50.0,
+     "animatable": true
+    }
+   }
+  },
+  {
+   "id": "corner_pin",
+   "name": "Corner Pin",
+   "category": "Distort",
+   "excluded": "needs four exact corner points"
+  },
+  {
+   "id": "magnify",
+   "name": "Magnify",
+   "category": "Distort",
+   "desc": "magnifying glass circle over a spot",
+   "main": "magnification",
+   "preset": {
+    "center": [
+     0.5,
+     0.5
+    ],
+    "magnification": 180,
+    "size": 300
+   },
+   "params": {
+    "center": {
+     "type": "point",
+     "animatable": true
+    },
+    "magnification": {
+     "type": "number",
+     "min": 130,
+     "max": 260,
+     "default": 200.0,
+     "animatable": true
+    },
+    "size": {
+     "type": "number",
+     "min": 150,
+     "max": 480,
+     "default": 100.0,
+     "animatable": true
+    }
+   }
+  },
+  {
+   "id": "spherize",
+   "name": "Spherize",
+   "category": "Distort",
+   "desc": "spherical bulge of the centre",
+   "main": "radius",
+   "preset": {
+    "center": [
+     0.5,
+     0.5
+    ],
+    "radius": 500
+   },
+   "params": {
+    "center": {
+     "type": "point",
+     "animatable": true
+    },
+    "radius": {
+     "type": "number",
+     "min": 200,
+     "max": 900,
+     "default": 0.0,
+     "animatable": true
+    }
+   }
+  },
+  {
+   "id": "turbulent_displace",
+   "name": "Turbulent Displace",
+   "category": "Distort",
+   "desc": "heat-haze wobble / dream distortion",
+   "main": "amount",
+   "preset": {
+    "amount": 35,
+    "size": 120
+   },
+   "params": {
+    "displacement": {
+     "type": "choice",
+     "options": [
+      "Turbulent",
+      "Bulge",
+      "Twist",
+      "Turbulent Smoother"
+     ],
+     "animatable": false
+    },
+    "amount": {
+     "type": "number",
+     "min": 10,
+     "max": 90,
+     "default": 50.0,
+     "animatable": true
+    },
+    "size": {
+     "type": "number",
+     "min": 50,
+     "max": 300,
+     "default": 100.0,
+     "animatable": true
+    }
+   }
+  },
+  {
+   "id": "warp_stabilizer",
+   "name": "Warp Stabilizer",
+   "category": "Distort",
+   "excluded": "for shaky footage, not pictures"
+  },
+  {
+   "id": "gradient",
+   "name": "Gradient",
+   "category": "Generate",
+   "excluded": "generator that replaces the picture"
+  },
+  {
+   "id": "channel_mix",
+   "name": "Channel Mix",
+   "category": "Image Control",
+   "excluded": "technical colour matrix"
+  },
+  {
+   "id": "color_replace",
+   "name": "Color Replace",
+   "category": "Image Control",
+   "excluded": "needs exact source colour"
+  },
+  {
+   "id": "rounded_crop",
+   "name": "Rounded Crop",
+   "category": "Image Control",
+   "desc": "picture inset as a rounded card with a border",
+   "main": "radius",
+   "preset": {
+    "left": 6,
+    "right": 6,
+    "top": 8,
+    "bottom": 8,
+    "radius": 60,
+    "border": 8,
+    "border_color": "#ffffff"
+   },
+   "params": {
+    "left": {
+     "type": "number",
+     "min": 2,
+     "max": 15,
+     "default": 0.0,
+     "animatable": true
+    },
+    "top": {
+     "type": "number",
+     "min": 2,
+     "max": 15,
+     "default": 0.0,
+     "animatable": true
+    },
+    "right": {
+     "type": "number",
+     "min": 2,
+     "max": 15,
+     "default": 0.0,
+     "animatable": true
+    },
+    "bottom": {
+     "type": "number",
+     "min": 2,
+     "max": 15,
+     "default": 0.0,
+     "animatable": true
+    },
+    "radius": {
+     "type": "number",
+     "min": 20,
+     "max": 140,
+     "default": 40.0,
+     "animatable": true
+    },
+    "border": {
+     "type": "number",
+     "min": 0,
+     "max": 20,
+     "default": 0.0,
+     "animatable": true
+    },
+    "border_color": {
+     "type": "color",
+     "animatable": true
+    }
+   }
+  },
+  {
+   "id": "alpha_adjust",
+   "name": "Alpha Adjust",
+   "category": "Keying",
+   "excluded": "alpha utility"
+  },
+  {
+   "id": "logo_cutout",
+   "name": "Logo Cutout",
+   "category": "Keying",
+   "excluded": "keying"
+  },
+  {
+   "id": "echo_glow",
+   "name": "Echo Glow",
+   "category": "Lights & Glows",
+   "desc": "layered bloom echoes around bright areas",
+   "main": "intensity",
+   "preset": {
+    "threshold": 60,
+    "intensity": 120
+   },
+   "params": {
+    "threshold": {
+     "type": "number",
+     "min": 40,
+     "max": 85,
+     "default": 60.0,
+     "animatable": true
+    },
+    "echoes": {
+     "type": "number",
+     "min": 2,
+     "max": 6,
+     "default": 4.0,
+     "animatable": true
+    },
+    "intensity": {
+     "type": "number",
+     "min": 50,
+     "max": 250,
+     "default": 100.0,
+     "animatable": true
+    }
+   }
+  },
+  {
+   "id": "edge_glow",
+   "name": "Edge Glow",
+   "category": "Lights & Glows",
+   "desc": "neon outline glowing along edges",
+   "main": "intensity",
+   "preset": {
+    "intensity": 200,
+    "color": "#3fd8ff"
+   },
+   "params": {
+    "threshold": {
+     "type": "number",
+     "min": 10,
+     "max": 50,
+     "default": 20.0,
+     "animatable": true
+    },
+    "width": {
+     "type": "number",
+     "min": 1,
+     "max": 6,
+     "default": 2.0,
+     "animatable": true
+    },
+    "intensity": {
+     "type": "number",
+     "min": 80,
+     "max": 400,
+     "default": 150.0,
+     "animatable": true
+    },
+    "color": {
+     "type": "color",
+     "animatable": true
+    }
+   }
+  },
+  {
+   "id": "glint",
+   "name": "Glint",
+   "category": "Lights & Glows",
+   "desc": "star sparkles on the brightest highlights",
+   "main": "length",
+   "preset": {
+    "threshold": 75,
+    "length": 90
+   },
+   "params": {
+    "threshold": {
+     "type": "number",
+     "min": 55,
+     "max": 92,
+     "default": 75.0,
+     "animatable": true
+    },
+    "length": {
+     "type": "number",
+     "min": 30,
+     "max": 220,
+     "default": 60.0,
+     "animatable": true
+    },
+    "rays": {
+     "type": "choice",
+     "options": [
+      "4",
+      "6",
+      "8"
+     ],
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "light_leaks",
+   "name": "Light Leaks",
+   "category": "Lights & Glows",
+   "desc": "drifting warm film light leaks",
+   "main": "intensity",
+   "preset": {
+    "intensity": 45
+   },
+   "params": {
+    "c1": {
+     "type": "color",
+     "animatable": true
+    },
+    "c2": {
+     "type": "color",
+     "animatable": true
+    },
+    "intensity": {
+     "type": "number",
+     "min": 20,
+     "max": 80,
+     "default": 70.0,
+     "animatable": true
+    },
+    "speed": {
+     "type": "number",
+     "min": 0.3,
+     "max": 3,
+     "default": 1.0,
+     "animatable": true
+    }
+   }
+  },
+  {
+   "id": "rgb_split",
+   "name": "RGB Split",
+   "category": "Lights & Glows",
+   "desc": "chromatic aberration: red/blue channels shifted apart",
+   "main": "amount",
+   "preset": {
+    "amount": 10
+   },
+   "params": {
+    "amount": {
+     "type": "number",
+     "min": 3,
+     "max": 40,
+     "default": 10.0,
+     "animatable": true
+    },
+    "mode": {
+     "type": "choice",
+     "options": [
+      "Linear",
+      "Radial"
+     ],
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "volumetric_rays",
+   "name": "Volumetric Rays",
+   "category": "Lights & Glows",
+   "desc": "god rays streaming from the bright parts",
+   "main": "intensity",
+   "preset": {
+    "center": [
+     0.5,
+     0.2
+    ],
+    "intensity": 120
+   },
+   "params": {
+    "center": {
+     "type": "point",
+     "animatable": true
+    },
+    "threshold": {
+     "type": "number",
+     "min": 40,
+     "max": 85,
+     "default": 60.0,
+     "animatable": true
+    },
+    "length": {
+     "type": "number",
+     "min": 20,
+     "max": 80,
+     "default": 50.0,
+     "animatable": true
+    },
+    "intensity": {
+     "type": "number",
+     "min": 50,
+     "max": 220,
+     "default": 100.0,
+     "animatable": true
+    }
+   }
+  },
+  {
+   "id": "wonder_glow",
+   "name": "Wonder Glow",
+   "category": "Lights & Glows",
+   "desc": "soft bloom glow around highlights",
+   "main": "intensity",
+   "preset": {
+    "threshold": 55,
+    "intensity": 120
+   },
+   "params": {
+    "threshold": {
+     "type": "number",
+     "min": 35,
+     "max": 85,
+     "default": 60.0,
+     "animatable": true
+    },
+    "radius": {
+     "type": "number",
+     "min": 10,
+     "max": 80,
+     "default": 25.0,
+     "animatable": true
+    },
+    "intensity": {
+     "type": "number",
+     "min": 40,
+     "max": 220,
+     "default": 100.0,
+     "animatable": true
+    }
+   }
+  },
+  {
+   "id": "long_shadow",
+   "name": "Long Shadow",
+   "category": "Perspective",
+   "excluded": "needs transparency"
+  },
+  {
+   "id": "brush_strokes",
+   "name": "Brush Strokes",
+   "category": "Stylize",
+   "desc": "painterly brush strokes, like an oil painting",
+   "main": "length",
+   "preset": {
+    "size": 2,
+    "length": 10
+   },
+   "params": {
+    "size": {
+     "type": "number",
+     "min": 1,
+     "max": 4,
+     "default": 2.0,
+     "animatable": true
+    },
+    "length": {
+     "type": "number",
+     "min": 4,
+     "max": 20,
+     "default": 10.0,
+     "animatable": true
+    }
+   }
+  },
+  {
+   "id": "color_emboss",
+   "name": "Color Emboss",
+   "category": "Stylize",
+   "desc": "embossed relief with colours kept, like a metal stamp",
+   "main": "relief",
+   "preset": {
+    "relief": 2
+   },
+   "params": {
+    "relief": {
+     "type": "number",
+     "min": 0.5,
+     "max": 4,
+     "default": 1.0,
+     "animatable": true
+    },
+    "blend": {
+     "type": "number",
+     "min": 0,
+     "max": 70,
+     "default": 0.0,
+     "animatable": true
+    }
+   }
+  },
+  {
+   "id": "roughen_edges",
+   "name": "Roughen Edges",
+   "category": "Stylize",
+   "excluded": "needs transparency"
+  },
+  {
+   "id": "posterize_time",
+   "name": "Posterize Time",
+   "category": "Time",
+   "desc": "choppy stop-motion: fewer frames per second",
+   "main": "rate",
+   "preset": {
+    "rate": 8
+   },
+   "params": {
+    "rate": {
+     "type": "number",
+     "min": 4,
+     "max": 15,
+     "default": 12.0,
+     "animatable": true
+    }
+   }
+  },
+  {
+   "id": "rotate_3d",
+   "name": "3D Rotate",
+   "category": "Transform",
+   "desc": "picture tilted in 3D space like a card",
+   "main": "rot_y",
+   "preset": {
+    "rot_y": 22,
+    "rot_x": 8
+   },
+   "params": {
+    "rot_x": {
+     "type": "number",
+     "min": -40,
+     "max": 40,
+     "default": 0.0,
+     "animatable": true
+    },
+    "rot_y": {
+     "type": "number",
+     "min": -40,
+     "max": 40,
+     "default": 0.0,
+     "animatable": true
+    },
+    "rot_z": {
+     "type": "number",
+     "min": -20,
+     "max": 20,
+     "default": 0.0,
+     "animatable": true
+    }
+   }
+  },
+  {
+   "id": "auto_reframe",
+   "name": "Auto Reframe",
+   "category": "Transform",
+   "excluded": "technical reframing (pictures are already vertical)"
+  },
+  {
+   "id": "camera_shake",
+   "name": "Camera Shake",
+   "category": "Transform",
+   "desc": "handheld camera shake",
+   "main": "amount",
+   "preset": {
+    "amount": 20
+   },
+   "params": {
+    "amount": {
+     "type": "number",
+     "min": 5,
+     "max": 70,
+     "default": 20.0,
+     "animatable": true
+    },
+    "rotation": {
+     "type": "number",
+     "min": 0,
+     "max": 5,
+     "default": 1.0,
+     "animatable": true
+    },
+    "frequency": {
+     "type": "number",
+     "min": 1,
+     "max": 12,
+     "default": 4.0,
+     "animatable": true
+    }
+   }
+  },
+  {
+   "id": "grow",
+   "name": "Grow",
+   "category": "Transform",
+   "excluded": "use `camera`"
+  },
+  {
+   "id": "shrink",
+   "name": "Shrink",
+   "category": "Transform",
+   "excluded": "use `camera`"
+  },
+  {
+   "id": "move",
+   "name": "Move",
+   "category": "Transform",
+   "excluded": "use `camera`"
+  },
+  {
+   "id": "spin",
+   "name": "Spin",
+   "category": "Transform",
+   "desc": "picture spins once over the shot (zoomed so no edges show)",
+   "main": "amount",
+   "preset": {
+    "amount": 90,
+    "scale": 150
+   },
+   "params": {
+    "amount": {
+     "type": "number",
+     "min": -360,
+     "max": 360,
+     "default": 360.0,
+     "animatable": true
+    },
+    "scale": {
+     "type": "number",
+     "min": 110,
+     "max": 180,
+     "default": 100.0,
+     "animatable": true
+    }
+   }
+  },
+  {
+   "id": "spacer",
+   "name": "Spacer",
+   "category": "Transform",
+   "excluded": "layout utility"
+  },
+  {
+   "id": "wiggle",
+   "name": "Wiggle",
+   "category": "Transform",
+   "desc": "random jittery wiggle of position",
+   "main": "amount",
+   "preset": {
+    "frequency": 4,
+    "amount": 20
+   },
+   "params": {
+    "frequency": {
+     "type": "number",
+     "min": 1,
+     "max": 12,
+     "default": 2.0,
+     "animatable": true
+    },
+    "amount": {
+     "type": "number",
+     "min": 5,
+     "max": 80,
+     "default": 20.0,
+     "animatable": true
+    },
+    "rotation": {
+     "type": "number",
+     "min": 0,
+     "max": 8,
+     "default": 0.0,
+     "animatable": true
+    }
+   }
+  },
+  {
+   "id": "auto_align",
+   "name": "Auto Align",
+   "category": "Utility",
+   "excluded": "layout utility"
+  },
+  {
+   "id": "cineon_converter",
+   "name": "Cineon Converter",
+   "category": "Utility",
+   "excluded": "technical log conversion"
+  },
+  {
+   "id": "clone",
+   "name": "Clone",
+   "category": "Utility",
+   "desc": "grid of copies of the picture (pop-art)",
+   "main": "rows",
+   "preset": {
+    "columns": 2,
+    "rows": 3,
+    "gap": 8
+   },
+   "params": {
+    "columns": {
+     "type": "number",
+     "min": 1,
+     "max": 4,
+     "default": 2.0,
+     "animatable": true
+    },
+    "rows": {
+     "type": "number",
+     "min": 1,
+     "max": 6,
+     "default": 1.0,
+     "animatable": true
+    },
+    "gap": {
+     "type": "number",
+     "min": 0,
+     "max": 30,
+     "default": 0.0,
+     "animatable": true
+    },
+    "mirror": {
+     "type": "bool",
+     "animatable": false
+    }
+   }
+  },
+  {
+   "id": "stroke",
+   "name": "Stroke",
+   "category": "Utility",
+   "excluded": "needs transparency"
+  },
+  {
+   "id": "metadata_burnin",
+   "name": "Metadata & Timecode Burn-in",
+   "category": "Video",
+   "excluded": "metadata/timecode burn-in"
+  },
+  {
+   "id": "echo",
+   "name": "Echo",
+   "category": "Obsolete",
+   "desc": "motion trails: earlier frames ghost behind moving things",
+   "main": "count",
+   "preset": {
+    "time": -0.06,
+    "count": 3
+   },
+   "params": {
+    "time": {
+     "type": "number",
+     "min": -0.2,
+     "max": -0.02,
+     "default": -0.033,
+     "animatable": true
+    },
+    "count": {
+     "type": "number",
+     "min": 1,
+     "max": 6,
+     "default": 1.0,
+     "animatable": true
+    }
+   }
+  },
+  {
+   "id": "lightning",
+   "name": "Lightning",
+   "category": "Obsolete",
+   "desc": "electric lightning bolt across the frame",
+   "main": "amplitude",
+   "preset": {
+    "start": [
+     0.5,
+     0.0
+    ],
+    "end": [
+     0.45,
+     0.6
+    ],
+    "width": 10
+   },
+   "params": {
+    "start": {
+     "type": "point",
+     "animatable": true
+    },
+    "end": {
+     "type": "point",
+     "animatable": true
+    },
+    "width": {
+     "type": "number",
+     "min": 4,
+     "max": 30,
+     "default": 10.0,
+     "animatable": true
+    },
+    "amplitude": {
+     "type": "number",
+     "min": 5,
+     "max": 30,
+     "default": 10.0,
+     "animatable": true
+    }
+   }
+  },
+  {
+   "id": "cell_pattern",
+   "name": "Cell Pattern",
+   "category": "Obsolete",
+   "excluded": "obsolete generator"
+  },
+  {
+   "id": "checkerboard",
+   "name": "Checkerboard",
+   "category": "Obsolete",
+   "excluded": "obsolete generator"
+  },
+  {
+   "id": "ellipse",
+   "name": "Ellipse",
+   "category": "Obsolete",
+   "excluded": "obsolete generator"
+  },
+  {
+   "id": "paint_bucket",
+   "name": "Paint Bucket",
+   "category": "Obsolete",
+   "excluded": "obsolete fill"
+  },
+  {
+   "id": "write_on",
+   "name": "Write-on",
+   "category": "Obsolete",
+   "excluded": "obsolete paint stroke"
+  },
+  {
+   "id": "alpha_glow",
+   "name": "Alpha Glow",
+   "category": "Video Effects",
+   "excluded": "needs transparency"
+  },
+  {
+   "id": "block_dissolve",
+   "name": "Block Dissolve",
+   "category": "Video Effects",
+   "desc": "picture breaks into missing blocks (animate 0 to 100 to dissolve it away)",
+   "main": "completion",
+   "preset": {
+    "completion": 30,
+    "block_w": 60,
+    "block_h": 60
+   },
+   "params": {
+    "completion": {
+     "type": "number",
+     "min": 0,
+     "max": 70,
+     "default": 0.0,
+     "animatable": true
+    },
+    "block_w": {
+     "type": "number",
+     "min": 20,
+     "max": 120,
+     "default": 1.0,
+     "animatable": true
+    },
+    "block_h": {
+     "type": "number",
+     "min": 20,
+     "max": 120,
+     "default": 1.0,
+     "animatable": true
+    }
+   }
+  },
+  {
+   "id": "directional_blur_legacy",
+   "name": "Directional Blur (Legacy)",
+   "category": "Video Effects",
+   "excluded": "legacy duplicate"
+  },
+  {
+   "id": "gaussian_blur_legacy",
+   "name": "Gaussian Blur (Legacy)",
+   "category": "Video Effects",
+   "excluded": "legacy duplicate"
+  },
+  {
+   "id": "gradient_wipe_legacy",
+   "name": "Gradient Wipe (Legacy)",
+   "category": "Video Effects",
+   "excluded": "legacy, use transitions"
+  },
+  {
+   "id": "linear_wipe_legacy",
+   "name": "Linear Wipe (Legacy)",
+   "category": "Video Effects",
+   "excluded": "legacy, use transitions"
+  },
+  {
+   "id": "magnify_legacy",
+   "name": "Magnify (Legacy)",
+   "category": "Video Effects",
+   "excluded": "legacy duplicate"
+  },
+  {
+   "id": "mosaic_legacy",
+   "name": "Mosaic (Legacy)",
+   "category": "Video Effects",
+   "excluded": "legacy duplicate"
+  },
+  {
+   "id": "noise_legacy",
+   "name": "Noise (Legacy)",
+   "category": "Video Effects",
+   "excluded": "legacy duplicate"
+  },
+  {
+   "id": "twirl_legacy",
+   "name": "Twirl (Legacy)",
+   "category": "Video Effects",
+   "excluded": "legacy duplicate"
+  },
+  {
+   "id": "vr_blur",
+   "name": "VR Blur",
+   "category": "Immersive Video",
+   "excluded": "VR projection"
+  },
+  {
+   "id": "vr_chromatic_aberrations",
+   "name": "VR Chromatic Aberrations",
+   "category": "Immersive Video",
+   "excluded": "VR projection (use rgb_split)"
+  },
+  {
+   "id": "vr_color_gradients",
+   "name": "VR Color Gradients",
+   "category": "Immersive Video",
+   "excluded": "VR projection"
+  },
+  {
+   "id": "vr_denoise",
+   "name": "VR De-Noise",
+   "category": "Immersive Video",
+   "excluded": "VR projection"
+  },
+  {
+   "id": "vr_digital_glitch",
+   "name": "VR Digital Glitch",
+   "category": "Immersive Video",
+   "desc": "animated digital glitch: block displacement, colour channels, scanlines",
+   "main": "amplitude",
+   "preset": {
+    "amplitude": 15
+   },
+   "params": {
+    "amplitude": {
+     "type": "number",
+     "min": 5,
+     "max": 50,
+     "default": 0.0,
+     "animatable": true
+    },
+    "scanlines": {
+     "type": "number",
+     "min": 0,
+     "max": 60,
+     "default": 0.0,
+     "animatable": true
+    },
+    "color": {
+     "type": "number",
+     "min": 0,
+     "max": 100,
+     "default": 50.0,
+     "animatable": true
+    }
+   }
+  },
+  {
+   "id": "vr_fractal_noise",
+   "name": "VR Fractal Noise",
+   "category": "Immersive Video",
+   "excluded": "VR projection"
+  },
+  {
+   "id": "vr_glow",
+   "name": "VR Glow",
+   "category": "Immersive Video",
+   "excluded": "VR projection (use wonder_glow)"
+  },
+  {
+   "id": "vr_plane_to_sphere",
+   "name": "VR Plane to Sphere",
+   "category": "Immersive Video",
+   "excluded": "VR projection"
+  },
+  {
+   "id": "vr_projection",
+   "name": "VR Projection",
+   "category": "Immersive Video",
+   "excluded": "VR projection"
+  },
+  {
+   "id": "vr_rotate_sphere",
+   "name": "VR Rotate Sphere",
+   "category": "Immersive Video",
+   "excluded": "VR projection"
+  },
+  {
+   "id": "vr_sharpen",
+   "name": "VR Sharpen",
+   "category": "Immersive Video",
+   "excluded": "VR projection"
+  },
+  {
+   "id": "graphic_text",
+   "name": "Text",
+   "category": "Other",
+   "excluded": "captions are separate"
+  },
+  {
+   "id": "graphic_shape",
+   "name": "Shape",
+   "category": "Other",
+   "excluded": "graphics layer, not an effect"
+  }
+ ],
+ "lumetri_looks": [
+  "None",
+  "Teal & Orange",
+  "Warm Film",
+  "Cool Blue",
+  "Bleach Bypass",
+  "Faded Matte",
+  "Monochrome",
+  "Golden Hour",
+  "Night"
+ ],
+ "effectcraft_effects": [
+  {
+   "id": "ec.3d.channelextract",
+   "name": "3D Channel Extract",
+   "category": "3D Channel"
+  },
+  {
+   "id": "ec.3d.instance3d",
+   "name": "3D Layer Instance",
+   "category": "3D Channel"
+  },
+  {
+   "id": "ec.3d.cryptomatte",
+   "name": "Cryptomatte",
+   "category": "3D Channel"
+  },
+  {
+   "id": "ec.3d.depthmatte",
+   "name": "Depth Matte",
+   "category": "3D Channel"
+  },
+  {
+   "id": "ec.3d.depthoffield",
+   "name": "Depth of Field",
+   "category": "3D Channel"
+  },
+  {
+   "id": "ec.3d.extractor",
+   "name": "EXtractoR",
+   "category": "3D Channel"
+  },
+  {
+   "id": "ec.3d.fog3d",
+   "name": "Fog 3D",
+   "category": "3D Channel"
+  },
+  {
+   "id": "ec.3d.idmatte",
+   "name": "ID Matte",
+   "category": "3D Channel"
+  },
+  {
+   "id": "ec.3d.identifier",
+   "name": "IDentifier",
+   "category": "3D Channel"
+  },
+  {
+   "id": "ec.audio.backwards",
+   "name": "Backwards",
+   "category": "Audio"
+  },
+  {
+   "id": "ec.audio.basstreble",
+   "name": "Bass & Treble",
+   "category": "Audio"
+  },
+  {
+   "id": "ec.audio.compressor",
+   "name": "Compressor",
+   "category": "Audio"
+  },
+  {
+   "id": "ec.audio.delay",
+   "name": "Delay",
+   "category": "Audio"
+  },
+  {
+   "id": "ec.audio.distortion",
+   "name": "Distortion",
+   "category": "Audio"
+  },
+  {
+   "id": "ec.audio.flangechorus",
+   "name": "Flange & Chorus",
+   "category": "Audio"
+  },
+  {
+   "id": "ec.audio.gate",
+   "name": "Gate",
+   "category": "Audio"
+  },
+  {
+   "id": "ec.audio.highlowpass",
+   "name": "High-Low Pass",
+   "category": "Audio"
+  },
+  {
+   "id": "ec.audio.modulator",
+   "name": "Modulator",
+   "category": "Audio"
+  },
+  {
+   "id": "ec.audio.parametriceq",
+   "name": "Parametric EQ",
+   "category": "Audio"
+  },
+  {
+   "id": "ec.audio.reverb",
+   "name": "Reverb",
+   "category": "Audio"
+  },
+  {
+   "id": "ec.audio.stereomixer",
+   "name": "Stereo Mixer",
+   "category": "Audio"
+  },
+  {
+   "id": "ec.audio.tone",
+   "name": "Tone",
+   "category": "Audio"
+  },
+  {
+   "id": "ec.blur.bilateral",
+   "name": "Bilateral Blur",
+   "category": "Blur & Sharpen"
+  },
+  {
+   "id": "ec.blur.cameralens",
+   "name": "Camera Lens Blur",
+   "category": "Blur & Sharpen"
+  },
+  {
+   "id": "ec.blur.camerashakedeblur",
+   "name": "Camera-Shake Deblur",
+   "category": "Blur & Sharpen"
+  },
+  {
+   "id": "ec.blur.channel",
+   "name": "Channel Blur",
+   "category": "Blur & Sharpen"
+  },
+  {
+   "id": "ec.blur.compound",
+   "name": "Compound Blur",
+   "category": "Blur & Sharpen"
+  },
+  {
+   "id": "ec.blur.cccross",
+   "name": "Cross Blur",
+   "category": "Blur & Sharpen"
+  },
+  {
+   "id": "ec.blur.directional",
+   "name": "Directional Blur",
+   "category": "Blur & Sharpen"
+  },
+  {
+   "id": "ec.blur.fastbox",
+   "name": "Fast Box Blur",
+   "category": "Blur & Sharpen"
+  },
+  {
+   "id": "ec.blur.ccradialfast",
+   "name": "Fast Radial Blur",
+   "category": "Blur & Sharpen"
+  },
+  {
+   "id": "ec.blur.gaussian",
+   "name": "Gaussian Blur",
+   "category": "Blur & Sharpen"
+  },
+  {
+   "id": "ec.blur.radial",
+   "name": "Radial Blur",
+   "category": "Blur & Sharpen"
+  },
+  {
+   "id": "ec.blur.sharpen",
+   "name": "Sharpen",
+   "category": "Blur & Sharpen"
+  },
+  {
+   "id": "ec.blur.smart",
+   "name": "Smart Blur",
+   "category": "Blur & Sharpen"
+  },
+  {
+   "id": "ec.blur.unsharp",
+   "name": "Unsharp Mask",
+   "category": "Blur & Sharpen"
+  },
+  {
+   "id": "ec.blur.ccradial",
+   "name": "Variable Radial Blur",
+   "category": "Blur & Sharpen"
+  },
+  {
+   "id": "ec.blur.ccvector",
+   "name": "Vector Blur",
+   "category": "Blur & Sharpen"
+  },
+  {
+   "id": "ec.channel.arithmetic",
+   "name": "Arithmetic",
+   "category": "Channel"
+  },
+  {
+   "id": "ec.channel.blend",
+   "name": "Blend",
+   "category": "Channel"
+  },
+  {
+   "id": "ec.channel.calculations",
+   "name": "Calculations",
+   "category": "Channel"
+  },
+  {
+   "id": "ec.channel.combiner",
+   "name": "Channel Combiner",
+   "category": "Channel"
+  },
+  {
+   "id": "ec.channel.compoundarithmetic",
+   "name": "Compound Arithmetic",
+   "category": "Channel"
+  },
+  {
+   "id": "ec.channel.invert",
+   "name": "Invert",
+   "category": "Channel"
+  },
+  {
+   "id": "ec.channel.minimax",
+   "name": "Minimax",
+   "category": "Channel"
+  },
+  {
+   "id": "ec.channel.removecolormatting",
+   "name": "Remove Color Matting",
+   "category": "Channel"
+  },
+  {
+   "id": "ec.channel.setchannels",
+   "name": "Set Channels",
+   "category": "Channel"
+  },
+  {
+   "id": "ec.channel.setmatte",
+   "name": "Set Matte",
+   "category": "Channel"
+  },
+  {
+   "id": "ec.channel.shiftchannels",
+   "name": "Shift Channels",
+   "category": "Channel"
+  },
+  {
+   "id": "ec.channel.solidcomposite",
+   "name": "Solid Composite",
+   "category": "Channel"
+  },
+  {
+   "id": "ec.channel.cccomposite",
+   "name": "Source Composite",
+   "category": "Channel"
+  },
+  {
+   "id": "ec.color.autocolor",
+   "name": "Auto Color",
+   "category": "Color Correction"
+  },
+  {
+   "id": "ec.color.autocontrast",
+   "name": "Auto Contrast",
+   "category": "Color Correction"
+  },
+  {
+   "id": "ec.color.autolevels",
+   "name": "Auto Levels",
+   "category": "Color Correction"
+  },
+  {
+   "id": "ec.color.blackwhite",
+   "name": "Black & White",
+   "category": "Color Correction"
+  },
+  {
+   "id": "ec.color.brightnesscontrast",
+   "name": "Brightness & Contrast",
+   "category": "Color Correction"
+  },
+  {
+   "id": "ec.color.broadcast",
+   "name": "Broadcast Colors",
+   "category": "Color Correction"
+  },
+  {
+   "id": "ec.color.changecolor",
+   "name": "Change Color",
+   "category": "Color Correction"
+  },
+  {
+   "id": "ec.color.changetocolor",
+   "name": "Change to Color",
+   "category": "Color Correction"
+  },
+  {
+   "id": "ec.color.channelmixer",
+   "name": "Channel Mixer",
+   "category": "Color Correction"
+  },
+  {
+   "id": "ec.color.cccoloroffset",
+   "name": "Channel Offset",
+   "category": "Color Correction"
+  },
+  {
+   "id": "ec.color.colorbalance",
+   "name": "Color Balance",
+   "category": "Color Correction"
+  },
+  {
+   "id": "ec.color.colorbalancehls",
+   "name": "Color Balance (HLS)",
+   "category": "Color Correction"
+  },
+  {
+   "id": "ec.color.lumetri",
+   "name": "Color Grading",
+   "category": "Color Correction"
+  },
+  {
+   "id": "ec.color.colorlink",
+   "name": "Color Link",
+   "category": "Color Correction"
+  },
+  {
+   "id": "ec.color.cccolorneutralizer",
+   "name": "Color Neutralizer",
+   "category": "Color Correction"
+  },
+  {
+   "id": "ec.color.colorstabilizer",
+   "name": "Color Stabilizer",
+   "category": "Color Correction"
+  },
+  {
+   "id": "ec.color.colorama",
+   "name": "Colorama",
+   "category": "Color Correction"
+  },
+  {
+   "id": "ec.color.cckernel",
+   "name": "Convolution Kernel",
+   "category": "Color Correction"
+  },
+  {
+   "id": "ec.color.curves",
+   "name": "Curves",
+   "category": "Color Correction"
+  },
+  {
+   "id": "ec.color.equalize",
+   "name": "Equalize",
+   "category": "Color Correction"
+  },
+  {
+   "id": "ec.color.exposure",
+   "name": "Exposure",
+   "category": "Color Correction"
+  },
+  {
+   "id": "ec.color.gammapedestalgain",
+   "name": "Gamma/Pedestal/Gain",
+   "category": "Color Correction"
+  },
+  {
+   "id": "ec.color.huesaturation",
+   "name": "Hue/Saturation",
+   "category": "Color Correction"
+  },
+  {
+   "id": "ec.color.leavecolor",
+   "name": "Leave Color",
+   "category": "Color Correction"
+  },
+  {
+   "id": "ec.color.levels",
+   "name": "Levels",
+   "category": "Color Correction"
+  },
+  {
+   "id": "ec.color.levelsic",
+   "name": "Levels (Individual Controls)",
+   "category": "Color Correction"
+  },
+  {
+   "id": "ec.color.cctoner",
+   "name": "Multi-Tone Tint",
+   "category": "Color Correction"
+  },
+  {
+   "id": "ec.color.ociocdl",
+   "name": "OCIO CDL Transform",
+   "category": "Color Correction"
+  },
+  {
+   "id": "ec.color.ociocolorspace",
+   "name": "OCIO Color Space Transform",
+   "category": "Color Correction"
+  },
+  {
+   "id": "ec.color.ociodisplay",
+   "name": "OCIO Display Transform",
+   "category": "Color Correction"
+  },
+  {
+   "id": "ec.color.ociofile",
+   "name": "OCIO File Transform",
+   "category": "Color Correction"
+  },
+  {
+   "id": "ec.color.ociolook",
+   "name": "OCIO Look Transform",
+   "category": "Color Correction"
+  },
+  {
+   "id": "ec.color.psarbitrarymap",
+   "name": "PS Arbitrary Map",
+   "category": "Color Correction"
+  },
+  {
+   "id": "ec.color.photofilter",
+   "name": "Photo Filter",
+   "category": "Color Correction"
+  },
+  {
+   "id": "ec.color.selectivecolor",
+   "name": "Selective Color",
+   "category": "Color Correction"
+  },
+  {
+   "id": "ec.color.shadowhighlight",
+   "name": "Shadow/Highlight",
+   "category": "Color Correction"
+  },
+  {
+   "id": "ec.color.tint",
+   "name": "Tint",
+   "category": "Color Correction"
+  },
+  {
+   "id": "ec.color.tritone",
+   "name": "Tritone",
+   "category": "Color Correction"
+  },
+  {
+   "id": "ec.color.vibrance",
+   "name": "Vibrance",
+   "category": "Color Correction"
+  },
+  {
+   "id": "ec.color.videolimiter",
+   "name": "Video Limiter",
+   "category": "Color Correction"
+  },
+  {
+   "id": "ec.distort.bezierwarp",
+   "name": "Bezier Warp",
+   "category": "Distort"
+  },
+  {
+   "id": "ec.distort.bulge",
+   "name": "Bulge",
+   "category": "Distort"
+  },
+  {
+   "id": "ec.distort.cornerpin",
+   "name": "Corner Pin",
+   "category": "Distort"
+  },
+  {
+   "id": "ec.distort.upscale",
+   "name": "Detail-preserving Upscale",
+   "category": "Distort"
+  },
+  {
+   "id": "ec.distort.ccsmear",
+   "name": "Directional Smear",
+   "category": "Distort"
+  },
+  {
+   "id": "ec.distort.displacementmap",
+   "name": "Displacement Map",
+   "category": "Distort"
+  },
+  {
+   "id": "ec.distort.ccflomotion",
+   "name": "Dual Lens Warp",
+   "category": "Distort"
+  },
+  {
+   "id": "ec.distort.ccsplit2",
+   "name": "Dual Split Warp",
+   "category": "Distort"
+  },
+  {
+   "id": "ec.distort.ccbender",
+   "name": "Flexible Bend",
+   "category": "Distort"
+  },
+  {
+   "id": "ec.distort.cclens",
+   "name": "Lens Distortion",
+   "category": "Distort"
+  },
+  {
+   "id": "ec.distort.liquify",
+   "name": "Liquify",
+   "category": "Distort"
+  },
+  {
+   "id": "ec.distort.magnify",
+   "name": "Magnify",
+   "category": "Distort"
+  },
+  {
+   "id": "ec.distort.meshwarp",
+   "name": "Mesh Warp",
+   "category": "Distort"
+  },
+  {
+   "id": "ec.distort.mirror",
+   "name": "Mirror",
+   "category": "Distort"
+  },
+  {
+   "id": "ec.distort.offset",
+   "name": "Offset",
+   "category": "Distort"
+  },
+  {
+   "id": "ec.distort.opticscompensation",
+   "name": "Optics Compensation",
+   "category": "Distort"
+  },
+  {
+   "id": "ec.distort.ccblobbylize",
+   "name": "Organic Displacement",
+   "category": "Distort"
+  },
+  {
+   "id": "ec.distort.ccpageturn",
+   "name": "Page Curl",
+   "category": "Distort"
+  },
+  {
+   "id": "ec.distort.ccpowerpin",
+   "name": "Perspective Pin",
+   "category": "Distort"
+  },
+  {
+   "id": "ec.distort.polar",
+   "name": "Polar Coordinates",
+   "category": "Distort"
+  },
+  {
+   "id": "ec.distort.ccripplepulse",
+   "name": "Pulsed Ripple",
+   "category": "Distort"
+  },
+  {
+   "id": "ec.distort.puppet",
+   "name": "Puppet",
+   "category": "Distort"
+  },
+  {
+   "id": "ec.distort.reshape",
+   "name": "Reshape",
+   "category": "Distort"
+  },
+  {
+   "id": "ec.distort.ripple",
+   "name": "Ripple",
+   "category": "Distort"
+  },
+  {
+   "id": "ec.distort.rollingshutterrepair",
+   "name": "Rolling Shutter Repair",
+   "category": "Distort"
+  },
+  {
+   "id": "ec.distort.cctiler",
+   "name": "Scaled Tiles",
+   "category": "Distort"
+  },
+  {
+   "id": "ec.distort.ccslant",
+   "name": "Slant",
+   "category": "Distort"
+  },
+  {
+   "id": "ec.distort.smear",
+   "name": "Smear",
+   "category": "Distort"
+  },
+  {
+   "id": "ec.distort.spherize",
+   "name": "Spherize",
+   "category": "Distort"
+  },
+  {
+   "id": "ec.distort.ccsplit",
+   "name": "Split Warp",
+   "category": "Distort"
+  },
+  {
+   "id": "ec.distort.ccgriddler",
+   "name": "Tile Grid",
+   "category": "Distort"
+  },
+  {
+   "id": "ec.distort.transform",
+   "name": "Transform",
+   "category": "Distort"
+  },
+  {
+   "id": "ec.distort.turbulentdisplace",
+   "name": "Turbulent Displace",
+   "category": "Distort"
+  },
+  {
+   "id": "ec.distort.twirl",
+   "name": "Twirl",
+   "category": "Distort"
+  },
+  {
+   "id": "ec.distort.twirllegacy",
+   "name": "Twirl (Legacy)",
+   "category": "Distort"
+  },
+  {
+   "id": "ec.distort.ccbendit",
+   "name": "Two-Point Bend",
+   "category": "Distort"
+  },
+  {
+   "id": "ec.distort.warp",
+   "name": "Warp",
+   "category": "Distort"
+  },
+  {
+   "id": "ec.distort.warpstabilizer",
+   "name": "Warp Stabilizer",
+   "category": "Distort"
+  },
+  {
+   "id": "ec.distort.wavewarp",
+   "name": "Wave Warp",
+   "category": "Distort"
+  },
+  {
+   "id": "ec.control.point3d",
+   "name": "3D Point Control",
+   "category": "Expression Controls"
+  },
+  {
+   "id": "ec.control.angle",
+   "name": "Angle Control",
+   "category": "Expression Controls"
+  },
+  {
+   "id": "ec.control.checkbox",
+   "name": "Checkbox Control",
+   "category": "Expression Controls"
+  },
+  {
+   "id": "ec.control.color",
+   "name": "Color Control",
+   "category": "Expression Controls"
+  },
+  {
+   "id": "ec.control.dropdown",
+   "name": "Dropdown Menu Control",
+   "category": "Expression Controls"
+  },
+  {
+   "id": "ec.control.layer",
+   "name": "Layer Control",
+   "category": "Expression Controls"
+  },
+  {
+   "id": "ec.control.point",
+   "name": "Point Control",
+   "category": "Expression Controls"
+  },
+  {
+   "id": "ec.control.slider",
+   "name": "Slider Control",
+   "category": "Expression Controls"
+  },
+  {
+   "id": "ec.control.stereo3d",
+   "name": "Stereo 3D Controls",
+   "category": "Expression Controls"
+  },
+  {
+   "id": "ec.generate.fourcolor",
+   "name": "4-Color Gradient",
+   "category": "Generate"
+  },
+  {
+   "id": "ec.generate.advancedlightning",
+   "name": "Advanced Lightning",
+   "category": "Generate"
+  },
+  {
+   "id": "ec.generate.audiospectrum",
+   "name": "Audio Spectrum",
+   "category": "Generate"
+  },
+  {
+   "id": "ec.generate.audiowaveform",
+   "name": "Audio Waveform",
+   "category": "Generate"
+  },
+  {
+   "id": "ec.generate.beam",
+   "name": "Beam",
+   "category": "Generate"
+  },
+  {
+   "id": "ec.generate.cellpattern",
+   "name": "Cell Pattern",
+   "category": "Generate"
+  },
+  {
+   "id": "ec.generate.checkerboard",
+   "name": "Checkerboard",
+   "category": "Generate"
+  },
+  {
+   "id": "ec.generate.circle",
+   "name": "Circle",
+   "category": "Generate"
+  },
+  {
+   "id": "ec.generate.ellipse",
+   "name": "Ellipse",
+   "category": "Generate"
+  },
+  {
+   "id": "ec.generate.eyedropperfill",
+   "name": "Eyedropper Fill",
+   "category": "Generate"
+  },
+  {
+   "id": "ec.generate.fill",
+   "name": "Fill",
+   "category": "Generate"
+  },
+  {
+   "id": "ec.generate.fractal",
+   "name": "Fractal",
+   "category": "Generate"
+  },
+  {
+   "id": "ec.generate.gradientramp",
+   "name": "Gradient Ramp",
+   "category": "Generate"
+  },
+  {
+   "id": "ec.generate.grid",
+   "name": "Grid",
+   "category": "Generate"
+  },
+  {
+   "id": "ec.generate.lensflare",
+   "name": "Lens Flare",
+   "category": "Generate"
+  },
+  {
+   "id": "ec.generate.cclightrays",
+   "name": "Light Rays",
+   "category": "Generate"
+  },
+  {
+   "id": "ec.generate.cclightsweep",
+   "name": "Light Sweep",
+   "category": "Generate"
+  },
+  {
+   "id": "ec.generate.ccgluegun",
+   "name": "Paint Beads",
+   "category": "Generate"
+  },
+  {
+   "id": "ec.generate.paintbucket",
+   "name": "Paint Bucket",
+   "category": "Generate"
+  },
+  {
+   "id": "ec.generate.cclightburst",
+   "name": "Radial Light Burst",
+   "category": "Generate"
+  },
+  {
+   "id": "ec.generate.radiowaves",
+   "name": "Radio Waves",
+   "category": "Generate"
+  },
+  {
+   "id": "ec.generate.scribble",
+   "name": "Scribble",
+   "category": "Generate"
+  },
+  {
+   "id": "ec.generate.stroke",
+   "name": "Stroke",
+   "category": "Generate"
+  },
+  {
+   "id": "ec.generate.vegas",
+   "name": "Vegas",
+   "category": "Generate"
+  },
+  {
+   "id": "ec.generate.ccthreads",
+   "name": "Woven Threads",
+   "category": "Generate"
+  },
+  {
+   "id": "ec.generate.writeon",
+   "name": "Write-on",
+   "category": "Generate"
+  },
+  {
+   "id": "ec.vr.blur",
+   "name": "VR Blur",
+   "category": "Immersive Video"
+  },
+  {
+   "id": "ec.vr.chromaticaberrations",
+   "name": "VR Chromatic Aberrations",
+   "category": "Immersive Video"
+  },
+  {
+   "id": "ec.vr.colorgradients",
+   "name": "VR Color Gradients",
+   "category": "Immersive Video"
+  },
+  {
+   "id": "ec.vr.converter",
+   "name": "VR Converter",
+   "category": "Immersive Video"
+  },
+  {
+   "id": "ec.vr.denoise",
+   "name": "VR De-Noise",
+   "category": "Immersive Video"
+  },
+  {
+   "id": "ec.vr.digitalglitch",
+   "name": "VR Digital Glitch",
+   "category": "Immersive Video"
+  },
+  {
+   "id": "ec.vr.fractalnoise",
+   "name": "VR Fractal Noise",
+   "category": "Immersive Video"
+  },
+  {
+   "id": "ec.vr.glow",
+   "name": "VR Glow",
+   "category": "Immersive Video"
+  },
+  {
+   "id": "ec.vr.planetosphere",
+   "name": "VR Plane to Sphere",
+   "category": "Immersive Video"
+  },
+  {
+   "id": "ec.vr.rotatesphere",
+   "name": "VR Rotate Sphere",
+   "category": "Immersive Video"
+  },
+  {
+   "id": "ec.vr.sharpen",
+   "name": "VR Sharpen",
+   "category": "Immersive Video"
+  },
+  {
+   "id": "ec.vr.spheretoplane",
+   "name": "VR Sphere to Plane",
+   "category": "Immersive Video"
+  },
+  {
+   "id": "ec.key.advancedspill",
+   "name": "Advanced Spill Suppressor",
+   "category": "Keying"
+  },
+  {
+   "id": "ec.key.colordifference",
+   "name": "Color Difference Key",
+   "category": "Keying"
+  },
+  {
+   "id": "ec.key.colorrange",
+   "name": "Color Range",
+   "category": "Keying"
+  },
+  {
+   "id": "ec.key.differencematte",
+   "name": "Difference Matte",
+   "category": "Keying"
+  },
+  {
+   "id": "ec.key.extract",
+   "name": "Extract",
+   "category": "Keying"
+  },
+  {
+   "id": "ec.key.innerouter",
+   "name": "Inner/Outer Key",
+   "category": "Keying"
+  },
+  {
+   "id": "ec.key.keycleaner",
+   "name": "Key Cleaner",
+   "category": "Keying"
+  },
+  {
+   "id": "ec.key.ccsimplewireremoval",
+   "name": "Line Removal",
+   "category": "Keying"
+  },
+  {
+   "id": "ec.key.linearcolor",
+   "name": "Linear Color Key",
+   "category": "Keying"
+  },
+  {
+   "id": "ec.keying.keylight",
+   "name": "Screen Color Key",
+   "category": "Keying"
+  },
+  {
+   "id": "ec.key.screen",
+   "name": "Screen Key",
+   "category": "Keying"
+  },
+  {
+   "id": "ec.key.unmult",
+   "name": "Unmult",
+   "category": "Keying"
+  },
+  {
+   "id": "ec.matte.mattechoker",
+   "name": "Matte Choker",
+   "category": "Matte"
+  },
+  {
+   "id": "ec.matte.objectmatte",
+   "name": "Object Matte",
+   "category": "Matte"
+  },
+  {
+   "id": "ec.matte.refinehard",
+   "name": "Refine Hard Matte",
+   "category": "Matte"
+  },
+  {
+   "id": "ec.matte.refinesoft",
+   "name": "Refine Soft Matte",
+   "category": "Matte"
+  },
+  {
+   "id": "ec.matte.rotobrush",
+   "name": "Roto Brush & Refine Edge",
+   "category": "Matte"
+  },
+  {
+   "id": "ec.matte.simplechoker",
+   "name": "Simple Choker",
+   "category": "Matte"
+  },
+  {
+   "id": "ec.obsolete.mochashape",
+   "name": "Tracked Shape Matte",
+   "category": "Matte"
+  },
+  {
+   "id": "ec.noise.addgrain",
+   "name": "Add Grain",
+   "category": "Noise & Grain"
+  },
+  {
+   "id": "ec.noise.curlnoise",
+   "name": "Curl Noise",
+   "category": "Noise & Grain"
+  },
+  {
+   "id": "ec.noise.dustscratches",
+   "name": "Dust & Scratches",
+   "category": "Noise & Grain"
+  },
+  {
+   "id": "ec.noise.fractal",
+   "name": "Fractal Noise",
+   "category": "Noise & Grain"
+  },
+  {
+   "id": "ec.noise.matchgrain",
+   "name": "Match Grain",
+   "category": "Noise & Grain"
+  },
+  {
+   "id": "ec.noise.median",
+   "name": "Median",
+   "category": "Noise & Grain"
+  },
+  {
+   "id": "ec.noise.medianlegacy",
+   "name": "Median (Legacy)",
+   "category": "Noise & Grain"
+  },
+  {
+   "id": "ec.noise.noise",
+   "name": "Noise",
+   "category": "Noise & Grain"
+  },
+  {
+   "id": "ec.noise.noisealpha",
+   "name": "Noise Alpha",
+   "category": "Noise & Grain"
+  },
+  {
+   "id": "ec.noise.noisehls",
+   "name": "Noise HLS",
+   "category": "Noise & Grain"
+  },
+  {
+   "id": "ec.noise.noisehlsauto",
+   "name": "Noise HLS Auto",
+   "category": "Noise & Grain"
+  },
+  {
+   "id": "ec.noise.removegrain",
+   "name": "Remove Grain",
+   "category": "Noise & Grain"
+  },
+  {
+   "id": "ec.noise.turbulent",
+   "name": "Turbulent Noise",
+   "category": "Noise & Grain"
+  },
+  {
+   "id": "ec.obsolete.basic3d",
+   "name": "Basic 3D",
+   "category": "Obsolete"
+  },
+  {
+   "id": "ec.obsolete.basictext",
+   "name": "Basic Text",
+   "category": "Obsolete"
+  },
+  {
+   "id": "ec.key.colorkey",
+   "name": "Color Key",
+   "category": "Obsolete"
+  },
+  {
+   "id": "ec.obsolete.gaussianlegacy",
+   "name": "Gaussian Blur (Legacy)",
+   "category": "Obsolete"
+  },
+  {
+   "id": "ec.obsolete.lightning",
+   "name": "Lightning",
+   "category": "Obsolete"
+  },
+  {
+   "id": "ec.key.luma",
+   "name": "Luma Key",
+   "category": "Obsolete"
+  },
+  {
+   "id": "ec.obsolete.pathtext",
+   "name": "Path Text",
+   "category": "Obsolete"
+  },
+  {
+   "id": "ec.blur.reduceflicker",
+   "name": "Reduce Interlace Flicker",
+   "category": "Obsolete"
+  },
+  {
+   "id": "ec.key.spill",
+   "name": "Spill Suppressor",
+   "category": "Obsolete"
+  },
+  {
+   "id": "ec.paint.paint",
+   "name": "Paint",
+   "category": "Paint"
+  },
+  {
+   "id": "ec.perspective.cameratracker",
+   "name": "3D Camera Tracker",
+   "category": "Perspective"
+  },
+  {
+   "id": "ec.perspective.3dglasses",
+   "name": "3D Glasses",
+   "category": "Perspective"
+  },
+  {
+   "id": "ec.perspective.bevelalpha",
+   "name": "Bevel Alpha",
+   "category": "Perspective"
+  },
+  {
+   "id": "ec.perspective.beveledges",
+   "name": "Bevel Edges",
+   "category": "Perspective"
+  },
+  {
+   "id": "ec.perspective.cccylinder",
+   "name": "Cylinder Wrap",
+   "category": "Perspective"
+  },
+  {
+   "id": "ec.perspective.dropshadow",
+   "name": "Drop Shadow",
+   "category": "Perspective"
+  },
+  {
+   "id": "ec.perspective.ccenvironment",
+   "name": "Environment Map",
+   "category": "Perspective"
+  },
+  {
+   "id": "ec.perspective.radialshadow",
+   "name": "Radial Shadow",
+   "category": "Perspective"
+  },
+  {
+   "id": "ec.perspective.ccsphere",
+   "name": "Sphere Wrap",
+   "category": "Perspective"
+  },
+  {
+   "id": "ec.perspective.ccspotlight",
+   "name": "Surface Spotlight",
+   "category": "Perspective"
+  },
+  {
+   "id": "ec.sim.ccballaction",
+   "name": "Ball Grid",
+   "category": "Simulation"
+  },
+  {
+   "id": "ec.sim.ccbubbles",
+   "name": "Bubbles",
+   "category": "Simulation"
+  },
+  {
+   "id": "ec.sim.carddance",
+   "name": "Card Dance",
+   "category": "Simulation"
+  },
+  {
+   "id": "ec.sim.caustics",
+   "name": "Caustics",
+   "category": "Simulation"
+  },
+  {
+   "id": "ec.sim.foam",
+   "name": "Foam",
+   "category": "Simulation"
+  },
+  {
+   "id": "ec.sim.ccmrmercury",
+   "name": "Liquid Particles",
+   "category": "Simulation"
+  },
+  {
+   "id": "ec.sim.ccparticlesystems2",
+   "name": "Particle Emitter 2D",
+   "category": "Simulation"
+  },
+  {
+   "id": "ec.sim.ccparticleworld",
+   "name": "Particle Emitter 3D",
+   "category": "Simulation"
+  },
+  {
+   "id": "ec.sim.particleplayground",
+   "name": "Particle Playground",
+   "category": "Simulation"
+  },
+  {
+   "id": "ec.sim.ccscatterize",
+   "name": "Pixel Scatter",
+   "category": "Simulation"
+  },
+  {
+   "id": "ec.sim.ccpixelpolly",
+   "name": "Pixel Shatter",
+   "category": "Simulation"
+  },
+  {
+   "id": "ec.sim.ccrainfall",
+   "name": "Rainfall",
+   "category": "Simulation"
+  },
+  {
+   "id": "ec.sim.shatter",
+   "name": "Shatter",
+   "category": "Simulation"
+  },
+  {
+   "id": "ec.sim.ccsnowfall",
+   "name": "Snowfall",
+   "category": "Simulation"
+  },
+  {
+   "id": "ec.sim.ccstarburst",
+   "name": "Starfield",
+   "category": "Simulation"
+  },
+  {
+   "id": "ec.sim.cchair",
+   "name": "Surface Fibers",
+   "category": "Simulation"
+  },
+  {
+   "id": "ec.sim.ccdrizzle",
+   "name": "Water Ripples",
+   "category": "Simulation"
+  },
+  {
+   "id": "ec.sim.waveworld",
+   "name": "Wave World",
+   "category": "Simulation"
+  },
+  {
+   "id": "ec.stylize.ccblockload",
+   "name": "Block Reveal",
+   "category": "Stylize"
+  },
+  {
+   "id": "ec.stylize.brushstrokes",
+   "name": "Brush Strokes",
+   "category": "Stylize"
+  },
+  {
+   "id": "ec.stylize.cartoon",
+   "name": "Cartoon",
+   "category": "Stylize"
+  },
+  {
+   "id": "ec.stylize.ccthreshold",
+   "name": "Channel Threshold",
+   "category": "Stylize"
+  },
+  {
+   "id": "ec.stylize.coloremboss",
+   "name": "Color Emboss",
+   "category": "Stylize"
+  },
+  {
+   "id": "ec.stylize.ccrepetile",
+   "name": "Edge Tile Repeat",
+   "category": "Stylize"
+  },
+  {
+   "id": "ec.stylize.emboss",
+   "name": "Emboss",
+   "category": "Stylize"
+  },
+  {
+   "id": "ec.stylize.ccburnfilm",
+   "name": "Film Burn",
+   "category": "Stylize"
+  },
+  {
+   "id": "ec.stylize.findedges",
+   "name": "Find Edges",
+   "category": "Stylize"
+  },
+  {
+   "id": "ec.stylize.ccglass",
+   "name": "Glass Relief",
+   "category": "Stylize"
+  },
+  {
+   "id": "ec.stylize.glow",
+   "name": "Glow",
+   "category": "Stylize"
+  },
+  {
+   "id": "ec.stylize.cchextile",
+   "name": "Hexagonal Tiles",
+   "category": "Stylize"
+  },
+  {
+   "id": "ec.stylize.cckaleida",
+   "name": "Kaleidoscope",
+   "category": "Stylize"
+  },
+  {
+   "id": "ec.stylize.mosaic",
+   "name": "Mosaic",
+   "category": "Stylize"
+  },
+  {
+   "id": "ec.stylize.motiontile",
+   "name": "Motion Tile",
+   "category": "Stylize"
+  },
+  {
+   "id": "ec.stylize.ccmrsmoothie",
+   "name": "Palette Map",
+   "category": "Stylize"
+  },
+  {
+   "id": "ec.stylize.ccplastic",
+   "name": "Plastic Shading",
+   "category": "Stylize"
+  },
+  {
+   "id": "ec.stylize.posterize",
+   "name": "Posterize",
+   "category": "Stylize"
+  },
+  {
+   "id": "ec.stylize.ccthresholdrgb",
+   "name": "RGB Threshold",
+   "category": "Stylize"
+  },
+  {
+   "id": "ec.stylize.roughenedges",
+   "name": "Roughen Edges",
+   "category": "Stylize"
+  },
+  {
+   "id": "ec.stylize.scatter",
+   "name": "Scatter",
+   "category": "Stylize"
+  },
+  {
+   "id": "ec.stylize.strobe",
+   "name": "Strobe Light",
+   "category": "Stylize"
+  },
+  {
+   "id": "ec.stylize.texturize",
+   "name": "Texturize",
+   "category": "Stylize"
+  },
+  {
+   "id": "ec.stylize.threshold",
+   "name": "Threshold",
+   "category": "Stylize"
+  },
+  {
+   "id": "ec.stylize.ccvignette",
+   "name": "Vignette",
+   "category": "Stylize"
+  },
+  {
+   "id": "ec.text.numbers",
+   "name": "Numbers",
+   "category": "Text"
+  },
+  {
+   "id": "ec.text.timecode",
+   "name": "Timecode",
+   "category": "Text"
+  },
+  {
+   "id": "ec.time.echo",
+   "name": "Echo",
+   "category": "Time"
+  },
+  {
+   "id": "ec.time.pixelmotionblur",
+   "name": "Pixel Motion Blur",
+   "category": "Time"
+  },
+  {
+   "id": "ec.time.posterizetime",
+   "name": "Posterize Time",
+   "category": "Time"
+  },
+  {
+   "id": "ec.time.ccwidetime",
+   "name": "Temporal Blend",
+   "category": "Time"
+  },
+  {
+   "id": "ec.time.ccforcemotionblur",
+   "name": "Temporal Motion Blur",
+   "category": "Time"
+  },
+  {
+   "id": "ec.time.timedifference",
+   "name": "Time Difference",
+   "category": "Time"
+  },
+  {
+   "id": "ec.time.timedisplacement",
+   "name": "Time Displacement",
+   "category": "Time"
+  },
+  {
+   "id": "ec.time.timewarp",
+   "name": "Timewarp",
+   "category": "Time"
+  },
+  {
+   "id": "ec.transition.blockdissolve",
+   "name": "Block Dissolve",
+   "category": "Transition"
+  },
+  {
+   "id": "ec.transition.cardwipe",
+   "name": "Card Wipe",
+   "category": "Transition"
+  },
+  {
+   "id": "ec.transition.ccglasswipe",
+   "name": "Glass Wipe",
+   "category": "Transition"
+  },
+  {
+   "id": "ec.transition.gradientwipe",
+   "name": "Gradient Wipe",
+   "category": "Transition"
+  },
+  {
+   "id": "ec.transition.ccgridwipe",
+   "name": "Grid Wipe",
+   "category": "Transition"
+  },
+  {
+   "id": "ec.transition.iriswipe",
+   "name": "Iris Wipe",
+   "category": "Transition"
+  },
+  {
+   "id": "ec.transition.cclightwipe",
+   "name": "Light Wipe",
+   "category": "Transition"
+  },
+  {
+   "id": "ec.transition.cclinesweep",
+   "name": "Line Sweep",
+   "category": "Transition"
+  },
+  {
+   "id": "ec.transition.linearwipe",
+   "name": "Linear Wipe",
+   "category": "Transition"
+  },
+  {
+   "id": "ec.transition.ccimagewipe",
+   "name": "Luminance Image Wipe",
+   "category": "Transition"
+  },
+  {
+   "id": "ec.transition.ccradialscalewipe",
+   "name": "Radial Scale Wipe",
+   "category": "Transition"
+  },
+  {
+   "id": "ec.transition.radialwipe",
+   "name": "Radial Wipe",
+   "category": "Transition"
+  },
+  {
+   "id": "ec.transition.ccscalewipe",
+   "name": "Scale Wipe",
+   "category": "Transition"
+  },
+  {
+   "id": "ec.transition.ccjaws",
+   "name": "Serrated Wipe",
+   "category": "Transition"
+  },
+  {
+   "id": "ec.transition.cctwister",
+   "name": "Twist Wipe",
+   "category": "Transition"
+  },
+  {
+   "id": "ec.transition.venetian",
+   "name": "Venetian Blinds",
+   "category": "Transition"
+  },
+  {
+   "id": "ec.transition.ccwarpomatic",
+   "name": "Warp Dissolve",
+   "category": "Transition"
+  },
+  {
+   "id": "ec.utility.applylut",
+   "name": "Apply Color LUT",
+   "category": "Utility"
+  },
+  {
+   "id": "ec.utility.cineon",
+   "name": "Cineon Converter",
+   "category": "Utility"
+  },
+  {
+   "id": "ec.utility.colorprofileconverter",
+   "name": "Color Profile Converter",
+   "category": "Utility"
+  },
+  {
+   "id": "ec.utility.facemeasurements",
+   "name": "Face Measurements",
+   "category": "Utility"
+  },
+  {
+   "id": "ec.utility.facetrackpoints",
+   "name": "Face Track Points",
+   "category": "Utility"
+  },
+  {
+   "id": "ec.utility.growbounds",
+   "name": "Grow Bounds",
+   "category": "Utility"
+  },
+  {
+   "id": "ec.utility.hdrcompander",
+   "name": "HDR Compander",
+   "category": "Utility"
+  },
+  {
+   "id": "ec.utility.hdrcompression",
+   "name": "HDR Highlight Compression",
+   "category": "Utility"
+  },
+  {
+   "id": "ec.utility.ccoverbrights",
+   "name": "Out-of-Range Display",
+   "category": "Utility"
+  }
+ ]
+}
