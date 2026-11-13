@@ -1,0 +1,36 @@
+{
+ "id": "pitch3",
+ "task": "Сделай для меня необычный вертикальный ролик-питч про три наши игры для Roblox: Last Online (ретро-хоррор Roblox 2011, пустой сервер, бэкрумс), Server Beast (яркий кооп, весь сервер растит одного монстра) и Spider Ascension (тёмное аниме-подземелье, паук эволюционирует, окна «Системы»). Подача: зритель будто подключается к трём серверам по очереди, у каждой игры свой характер монтажа, свой цвет и своя музыка. В конце — что первой делаем Server Beast, а Last Online — запасной вариант.",
+ "assets_dir": "/home/slager/Рабочий стол/refs",
+ "briefs": [
+  "/home/slager/Рабочий стол/Last Online — GDD.md",
+  "/home/slager/Рабочий стол/Server Beast — GDD.md",
+  "/home/slager/Рабочий стол/Spider Ascension — GDD.md"
+ ],
+ "seconds": 60,
+ "must_mention": [
+  [
+   "Last Online",
+   "Ласт Онлайн"
+  ],
+  [
+   "Server Beast",
+   "Сервер Бист",
+   "Чудище сервера"
+  ],
+  [
+   "Spider Ascension",
+   "Паук"
+  ],
+  [
+   "первой Server Beast",
+   "Строим Beast",
+   "первым Server Beast"
+  ],
+  [
+   "запасной"
+  ]
+ ],
+ "sections_hint": "интро «подключение» → Last Online → Server Beast → Spider Ascension → решение (Server Beast первым, Last Online запасной)",
+ "notes": "Та же задача, что у четырёх реальных прогонов «сделай-для-меня-необычный-вертик…» в runs/ — по ним проверяем, что метрики растут от итерации к итерации."
+}

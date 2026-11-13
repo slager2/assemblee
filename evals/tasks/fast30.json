@@ -1,0 +1,28 @@
+{
+ "id": "fast30",
+ "task": "Сделай очень быстрый 30-секундный вертикальный тизер трёх наших игр Roblox: Last Online, Server Beast и Spider Ascension. Резкие короткие кадры, по 10 секунд на игру, крупные короткие подписи, в конце «Скоро в Roblox».",
+ "assets_dir": "/home/slager/Рабочий стол/refs",
+ "briefs": [
+  "/home/slager/Рабочий стол/Last Online — GDD.md",
+  "/home/slager/Рабочий стол/Server Beast — GDD.md",
+  "/home/slager/Рабочий стол/Spider Ascension — GDD.md"
+ ],
+ "seconds": 30,
+ "must_mention": [
+  [
+   "Last Online"
+  ],
+  [
+   "Server Beast"
+  ],
+  [
+   "Spider Ascension"
+  ],
+  [
+   "Скоро в Roblox",
+   "скоро"
+  ]
+ ],
+ "sections_hint": "Last Online 10 с → Server Beast 10 с → Spider Ascension 10 с → «Скоро в Roblox»",
+ "notes": "Проверка темпа: средний кадр ≤ 1.5 с, при этом подписи должны успевать читаться (конфликт темпа и времени на чтение)."
+}
