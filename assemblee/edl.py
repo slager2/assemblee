@@ -4,6 +4,7 @@ Keeping the edit as data (instead of mutating the NLE step by step) lets the mod
 delete shots freely, and lets the harness validate everything before anything is rendered.
 """
 import difflib
+import re
 from dataclasses import asdict, dataclass, field
 
 from .cards import CARD_STYLES
@@ -39,6 +40,14 @@ MUSIC = {"dark_drone": "dark_drone.wav", "chiptune": "chiptune.wav", "epic": "ep
 SFX = {"glitch": "sfx_glitch.wav", "whoosh": "sfx_whoosh.wav", "notify": "sfx_notify.wav", "boom": "sfx_boom.wav", "rise": "sfx_rise.wav"}
 
 LIMITS = {"picture_seconds": (0.6, 8.0), "card_seconds": (1.2, 5.0), "transition_seconds": (0.2, 1.2), "music_db": (-24.0, 3.0)}
+
+
+EMOJI = re.compile("[\U0001F000-\U0001FAFF\u2600-\u27BF\uFE0F\u200d]")
+
+
+def clean_text(text, limit):
+    """Captions are drawn with DejaVu fonts, which have no emoji: strip them and tidy spaces."""
+    return re.sub(r"[ \t]+", " ", EMOJI.sub("", str(text or ""))).strip()[:limit]
 
 
 def pick(value, allowed, default, what, warnings):
@@ -113,10 +122,10 @@ class EDL:
         if not isinstance(raw, dict):
             warnings.append(f"shot must be an object, got {type(raw).__name__}")
             return None
-        title = str(raw.get("card_title") or raw.get("title") or "").strip()
+        title = clean_text(raw.get("card_title") or raw.get("title"), 40)
         asset = str(raw.get("asset") or "").strip()
         if title and not asset:
-            return Shot(section=section, kind="card", title=title[:40], subtitle=str(raw.get("card_subtitle") or raw.get("subtitle") or "")[:80],
+            return Shot(section=section, kind="card", title=title[:40], subtitle=clean_text(raw.get("card_subtitle") or raw.get("subtitle"), 80),
                         card_style=pick(raw.get("card_style") or raw.get("style"), CARD_STYLES, "minimal", "card_style", warnings),
                         seconds=clamp(raw.get("seconds", 2.5), LIMITS["card_seconds"], 2.5, "card seconds", warnings),
                         transition_out=pick(raw.get("transition_out"), TRANSITIONS, "cut", "transition_out", warnings))
@@ -128,11 +137,11 @@ class EDL:
             warnings.append(f"asset '{asset}' not found, used '{close[0]}'")
             asset = close[0]
         cap = None
-        if raw.get("caption"):
-            cap = Caption(text=str(raw["caption"]).replace("\\n", "\n")[:120],
+        if clean_text(raw.get("caption"), 120):
+            cap = Caption(text=clean_text(str(raw["caption"]).replace("\\n", "\n"), 120),
                           style=pick(raw.get("caption_style"), CAPTION_STYLES, "subtitle", "caption_style", warnings),
                           position=pick(raw.get("caption_position"), POSITIONS, "bottom", "caption_position", warnings))
-        effects = [pick(e, EFFECTS, None, "effect", warnings) for e in (raw.get("effects") or [])][:2]
+        effects = list(dict.fromkeys(e for e in (pick(e, EFFECTS, None, "effect", warnings) for e in (raw.get("effects") or [])) if e))[:2]
         return Shot(section=section, kind="picture", asset=asset,
                     seconds=clamp(raw.get("seconds", 3), LIMITS["picture_seconds"], 3.0, "seconds", warnings),
                     motion=pick(raw.get("motion"), MOTIONS, "zoom_in", "motion", warnings),
