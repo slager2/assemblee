@@ -223,7 +223,8 @@ class EDL:
     def music_path(self, music):
         """File of a mood or library track (a plain existing path also works); None for "none"/unknown."""
         if music in MUSIC:
-            return AUDIO_DIR / MUSIC[music] if MUSIC[music] else None
+            f = AUDIO_DIR / MUSIC[music] if MUSIC[music] else None
+            return f if f and f.is_file() else None  # built-in beds missing (make_audio.sh not run): no music, not a crash
         if music in self.music_library:
             return Path(self.music_library[music]["path"])
         return Path(music) if music and Path(music).is_file() else None
