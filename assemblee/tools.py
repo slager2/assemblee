@@ -95,7 +95,13 @@ class PolishTools:
             if not rich and any(k in f for k in ("grade", "camera", "speed", "text_anim")):
                 w.append("grade/camera/speed/text_anim need rich mode, ignored")
             if "caption" in f:
-                s.caption = Caption(str(f["caption"]).replace("\\n", "\n")[:120]) if f["caption"] else None
+                text = str(f["caption"]).replace("\\n", "\n")[:120]
+                if not text:
+                    s.caption = None
+                elif s.caption:  # new text keeps the style and position the shot already had
+                    s.caption.text = text
+                else:
+                    s.caption = Caption(text)
             if s.caption and "caption_style" in f:
                 s.caption.style = pick(f["caption_style"], CAPTION_STYLES, s.caption.style, "caption_style", w)
             if s.caption and "caption_position" in f:
