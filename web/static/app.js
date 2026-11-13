@@ -434,7 +434,7 @@ function renderTimeline() {
     const fresh = S.prevClips.size > 0 && S.prevClips.get(c.n) !== sig;
     const thumb = c.thumb ? fileUrl(S.runId, c.thumb) + `?v=${encodeURIComponent(sig.length + ":" + S.timelineSeq)}` : null;
     const el = h("div", {
-      class: `clip ${c.kind === "card" ? "card" : "clip"}${w < 46 ? " narrow" : ""}${fresh ? " fresh" : ""}${selectedClip === c.n ? " sel" : ""}`,
+      class: `tlc ${c.kind === "card" ? "card" : "pic"}${w < 46 ? " narrow" : ""}${fresh ? " fresh" : ""}${selectedClip === c.n ? " sel" : ""}`,
       style: { left: X(s) + 1 + "px", width: w + "px", backgroundImage: thumb ? `url("${thumb}")` : "none" },
       "data-n": c.n,
     },
@@ -544,9 +544,9 @@ function renderScenes() {
 
 function selectClip(n, scrollRow) {
   selectedClip = selectedClip === n ? null : n;
-  document.querySelectorAll(".clip.sel, .scenes tr.sel").forEach((e) => e.classList.remove("sel"));
+  document.querySelectorAll(".tlc.sel, .scenes tr.sel").forEach((e) => e.classList.remove("sel"));
   if (selectedClip == null) return;
-  document.querySelectorAll(`.clip[data-n="${CSS.escape(String(n))}"], .scenes tr[data-n="${CSS.escape(String(n))}"]`)
+  document.querySelectorAll(`.tlc[data-n="${CSS.escape(String(n))}"], .scenes tr[data-n="${CSS.escape(String(n))}"]`)
     .forEach((e) => e.classList.add("sel"));
   if (scrollRow) {
     const row = document.querySelector(`.scenes tr[data-n="${CSS.escape(String(n))}"]`);

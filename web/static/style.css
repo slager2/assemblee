@@ -207,24 +207,24 @@ pre.json .b { color: #d08cf0; }
 .tick.minor { top: 19px; border-color: #252a33; }
 .tick span { position: absolute; left: 4px; top: 4px; font: 10px var(--mono); color: var(--muted); white-space: nowrap; }
 
-.clip {
+.tlc {
   position: absolute; top: 6px; bottom: 6px; border-radius: 5px; overflow: hidden;
   background: var(--clip) center / cover no-repeat;
   box-shadow: inset 0 0 0 1px rgba(255,255,255,.14);
   cursor: pointer;
 }
-.clip.card { background-color: var(--card); }
-.clip .bar { position: absolute; left: 0; right: 0; top: 0; height: 3px; background: var(--clip); }
-.clip.card .bar { background: var(--card); }
-.clip .shade { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,.55) 0, rgba(0,0,0,.05) 40%, rgba(0,0,0,.05) 55%, rgba(0,0,0,.7) 100%); }
-.clip .lbl { position: absolute; left: 6px; right: 4px; top: 6px; font-size: 11px; font-weight: 600; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 2px rgba(0,0,0,.8); }
-.clip .num { font-family: var(--mono); font-weight: 500; opacity: .7; margin-right: 4px; }
-.clip .fx { position: absolute; left: 4px; right: 4px; bottom: 4px; display: flex; gap: 3px; overflow: hidden; }
-.clip .fx i { font-style: normal; font-size: 9px; font-weight: 650; padding: 0 4px; border-radius: 3px; background: rgba(0,0,0,.6); color: #e8dcff; border: 1px solid rgba(255,255,255,.18); white-space: nowrap; line-height: 14px; }
-.clip:hover, .clip.sel { box-shadow: inset 0 0 0 2px #fff; }
-.clip.fresh { animation: fresh 1.6s ease-out; }
+.tlc.card { background-color: var(--card); }
+.tlc .bar { position: absolute; left: 0; right: 0; top: 0; height: 3px; background: var(--clip); }
+.tlc.card .bar { background: var(--card); }
+.tlc .shade { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,.55) 0, rgba(0,0,0,.05) 40%, rgba(0,0,0,.05) 55%, rgba(0,0,0,.7) 100%); }
+.tlc .lbl { position: absolute; left: 6px; right: 4px; top: 6px; font-size: 11px; font-weight: 600; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 2px rgba(0,0,0,.8); }
+.tlc .num { font-family: var(--mono); font-weight: 500; opacity: .7; margin-right: 4px; }
+.tlc .fx { position: absolute; left: 4px; right: 4px; bottom: 4px; display: flex; gap: 3px; overflow: hidden; }
+.tlc .fx i { font-style: normal; font-size: 9px; font-weight: 650; padding: 0 4px; border-radius: 3px; background: rgba(0,0,0,.6); color: #e8dcff; border: 1px solid rgba(255,255,255,.18); white-space: nowrap; line-height: 14px; }
+.tlc:hover, .tlc.sel { box-shadow: inset 0 0 0 2px #fff; }
+.tlc.fresh { animation: fresh 1.6s ease-out; }
 @keyframes fresh { 0% { box-shadow: inset 0 0 0 2px #ffd45a, 0 0 14px rgba(255,212,90,.6); } 100% { box-shadow: inset 0 0 0 1px rgba(255,255,255,.14); } }
-.clip.narrow .lbl, .clip.narrow .fx { display: none; }
+.tlc.narrow .lbl, .tlc.narrow .fx { display: none; }
 
 .trans {
   position: absolute; top: 50%; transform: translate(-50%, -50%); z-index: 2;
@@ -263,7 +263,7 @@ pre.json .b { color: #d08cf0; }
 .scenes { width: 100%; border-collapse: collapse; font-size: 12px; }
 .scenes th { position: sticky; top: 0; background: var(--panel); text-align: left; font-size: 10px; font-weight: 650; letter-spacing: .7px; text-transform: uppercase; color: var(--muted); padding: 7px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
 .scenes td { padding: 6px 10px; border-bottom: 1px solid #1d2128; vertical-align: middle; white-space: nowrap; }
-.scenes td.wrap { white-space: normal; min-width: 140px; color: var(--text-2); }
+.scenes td.wrap { white-space: normal; min-width: 160px; max-width: 260px; color: var(--text-2); }
 .scenes td.mono, .scenes td.num { font-family: var(--mono); font-size: 11.5px; color: var(--text-2); }
 .scenes tr:hover td { background: #191d24; }
 .scenes tr.sel td { background: rgba(76, 141, 255, .1); }
@@ -271,7 +271,7 @@ pre.json .b { color: #d08cf0; }
 .kind { display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; padding: 1px 6px; border-radius: 4px; }
 .kind.clip { background: rgba(63, 120, 216, .2); color: #8db4f5; }
 .kind.card { background: rgba(154, 108, 240, .2); color: #c4a8ff; }
-.chips { display: flex; gap: 4px; flex-wrap: wrap; }
+.chips { display: flex; gap: 4px; flex-wrap: nowrap; }
 .chips i { font-style: normal; font-size: 10.5px; padding: 0 6px; border-radius: 4px; background: var(--panel-3); color: var(--text-2); line-height: 17px; }
 .thumbcell { width: 46px; }
 .thumbcell img { width: 40px; height: 22px; object-fit: cover; border-radius: 3px; display: block; background: var(--panel-3); }
@@ -286,7 +286,7 @@ pre.json .b { color: #d08cf0; }
 .export-meta a { color: #8fb8ff; text-decoration: none; font-family: var(--mono); }
 .export-meta a:hover { text-decoration: underline; }
 .frames-panel { flex: 1; }
-.frames { flex: 1; overflow-y: auto; padding: 10px; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; align-content: start; }
+.frames { flex: 1; overflow-y: auto; padding: 10px; display: grid; grid-auto-rows: max-content; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; align-content: start; }
 .frames > .empty { grid-column: 1 / -1; }
 .frame { background: var(--panel-2); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
 .frame.bad { border-color: rgba(239, 91, 84, .55); }
