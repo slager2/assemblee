@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>assemblée · монитор</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='1' y='4' width='5' height='8' rx='1' fill='%234c8dff'/%3E%3Crect x='7' y='4' width='8' height='8' rx='1' fill='%23a77bf3'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="top">
+    <div class="brand"><span class="logo"><i></i><i></i></span>assemblée</div>
+    <label class="run-pick">
+      <select id="runSel" title="Запуск"></select>
+    </label>
+    <span id="status" class="badge">—</span>
+    <div class="task" id="task" title=""></div>
+    <div class="hstats">
+      <div class="hstat"><span>Время</span><b id="elapsed" class="mono">—</b></div>
+      <div class="hstat"><span>Модель</span><b id="model" class="mono">—</b></div>
+      <div class="hstat tps"><span>Токены/с</span><b id="tps" class="mono">—</b><svg id="spark" width="72" height="22" viewBox="0 0 72 22" preserveAspectRatio="none"></svg></div>
+    </div>
+  </header>
+
+  <main>
+    <section class="panel feed-panel">
+      <div class="panel-head">
+        <h2>Лента агента</h2>
+        <span class="muted small" id="feedCount"></span>
+        <div class="spacer"></div>
+        <button id="pinBtn" class="toggle on" title="Автопрокрутка к последнему событию">⤓ Следить</button>
+      </div>
+      <div id="feed" class="feed"></div>
+      <button id="newBelow" class="new-below" hidden>Новые события ↓</button>
+    </section>
+
+    <section class="center">
+      <div class="panel tl-panel">
+        <div class="panel-head">
+          <h2>Таймлайн</h2>
+          <span class="muted small" id="tlInfo"></span>
+          <div class="spacer"></div>
+          <div class="legend">
+            <span><i class="sw sw-clip"></i>Клип</span>
+            <span><i class="sw sw-card"></i>Карточка</span>
+            <span><i class="sw sw-sfx"></i>SFX</span>
+          </div>
+          <div class="seg" id="zoom">
+            <button data-z="1" class="on">Вписать</button><button data-z="2">2×</button><button data-z="4">4×</button>
+          </div>
+        </div>
+        <div id="timeline" class="timeline"><div class="empty">Таймлайн появится после первого события <code>timeline</code></div></div>
+      </div>
+      <div class="panel scenes-panel">
+        <div class="panel-head"><h2>Сцены</h2><span class="muted small" id="scenesInfo"></span></div>
+        <div class="scenes-wrap">
+          <table class="scenes" id="scenes">
+            <thead><tr><th>#</th><th>Тип</th><th>Название</th><th>Время</th><th>Длит.</th><th>Вид</th><th>Движение</th><th>Эффекты</th><th>Титр</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="right">
+      <div class="panel player-panel">
+        <div class="panel-head"><h2>Экспорт</h2><span class="muted small" id="exportInfo"></span></div>
+        <div class="player" id="player">
+          <div class="empty">Видео ещё не экспортировано</div>
+        </div>
+      </div>
+      <div class="panel frames-panel">
+        <div class="panel-head"><h2>Кадры</h2><span class="muted small" id="framesInfo"></span></div>
+        <div id="frames" class="frames"><div class="empty">Кадров пока нет</div></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="bottom">
+    <div class="counters">
+      <div class="ctr"><span>Ходы</span><b id="cTurns">0</b></div>
+      <div class="ctr"><span>Вызовы</span><b id="cCalls">0</b></div>
+      <div class="ctr" id="cErrBox"><span>Ошибки</span><b id="cErrors">0</b></div>
+      <div class="ctr"><span>Токены вывода</span><b id="cTokens">0</b></div>
+      <div class="ctr"><span>Средн. ток/с</span><b id="cAvg">—</b></div>
+    </div>
+    <div class="spacer"></div>
+    <div class="phases" id="phases"></div>
+  </footer>
+
+  <div id="lightbox" class="lightbox" hidden><img alt=""><div class="lb-cap"></div></div>
+  <script src="/static/app.js"></script>
+</body>
+</html>
