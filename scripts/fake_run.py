@@ -173,7 +173,7 @@ class Run:
                 ["ffmpeg", "-y", "-loglevel", "error",
                  "-f", "lavfi", "-i", f"testsrc2=size=640x360:rate=25:duration={seconds}",
                  "-f", "lavfi", "-i", f"sine=frequency=220:duration={seconds}",
-                 "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
+                 "-c:v", "libx264", "-preset", "ultrafast", "-crf", "32", "-pix_fmt", "yuv420p",
                  "-c:a", "aac", "-shortest", "-movflags", "+faststart", str(out)],
                 check=False,
             )
