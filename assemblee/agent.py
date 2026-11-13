@@ -18,6 +18,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from . import assets as assets_mod
+from . import vocab
 from .cards import CARD_STYLES, render_card
 from .compiler import compile_edl, picture_media
 from .edl import EDL, EFFECTS, LIMITS, LOOKS, MOTIONS, MUSIC, TRANSITIONS, Section
@@ -59,12 +60,13 @@ def text_match(read, expected):
 
 class Agent:
     def __init__(self, task: str, assets_dir: Path, briefs: list[Path], run_dir: Path, seconds: float = 60, slots: int = 2,
-                 llm: LLM | None = None, max_polish_turns=10, review_rounds=2, output_name="video.mp4"):
+                 llm: LLM | None = None, max_polish_turns=10, review_rounds=2, output_name="video.mp4", mode="strict", fetch: str | None = None):
         self.task, self.assets_dir, self.briefs = task, Path(assets_dir), [Path(b) for b in briefs]
         self.run_dir, self.seconds, self.slots = Path(run_dir), float(seconds), max(1, int(slots))
         self.llm = llm or LLM()
         self.ev = EventLog(self.run_dir)
         self.max_polish_turns, self.review_rounds, self.output_name = max_polish_turns, review_rounds, output_name
+        self.mode, self.fetch = mode, fetch
         self.turn = 0
         self.counters = {"tool_calls": 0, "errors": 0}
         self.t0 = time.time()
@@ -156,10 +158,14 @@ class Agent:
         def described(key, entry):
             self.step("describe_asset", {"asset": key}, {"what": entry["what"], "mood": entry["mood"]})
 
+        if self.fetch:
+            from . import fetch as fetch_mod
+            self.ev.emit("phase", name="explore", note=f"ищу и скачиваю картинки: {self.fetch}")
+            fetch_mod.gather(self.fetch, self.llm, self.assets_dir, on_event=lambda t, d: self.ev.emit(t, **d))
         cat = assets_mod.load_or_build(self.assets_dir, llm=self.llm, on_item=described)
         if not cat:
             raise RuntimeError(f"no pictures found in {self.assets_dir}")
-        self.edl = EDL(cat)
+        self.edl = EDL(cat, mode=self.mode)
         self._thumbs = {}
         self.assets_text = assets_mod.compact_list(cat)
         self.groups = sorted({k.split("/")[0] for k in cat if "/" in k})
@@ -222,6 +228,9 @@ class Agent:
             "kind": {"type": "string", "enum": ["card"]}, "card_title": {"type": "string"}, "card_subtitle": {"type": "string"},
             "card_style": {"type": "string", "enum": CARD_STYLES}, "seconds": {"type": "number"}, "transition_out": {"type": "string", "enum": TRANSITIONS}},
             "required": ["kind", "card_title", "card_subtitle", "card_style", "seconds", "transition_out"]}
+        frag = vocab.schema_fragments(self.mode, effect_params=False)
+        picture["properties"].update(frag["picture"])
+        card["properties"].update(frag["card"])
         return {"type": "object", "properties": {"shots": {"type": "array", "minItems": 2, "maxItems": 8, "items": {"anyOf": [picture, card]}}}, "required": ["shots"]}
 
     def _build_section(self, k, sec, schema):
@@ -230,7 +239,10 @@ class Agent:
         msgs = [{"role": "system", "content": SYSTEM},
                 {"role": "user", "content": f"ЗАДАЧА:\n{self.task}\n\nМАТЕРИАЛЫ:\n{self.briefs_text}\n\nРАСКАДРОВКА:\n{json.dumps(self.storyboard, ensure_ascii=False)}\n\n"
                                             f"КАРТИНКИ (id | что | настроение):\n{self.assets_text}\n\n"
-                                            f"Сейчас собери ТОЛЬКО секцию «{sec.name}» (до неё: {prev}, после: {nxt}). Цель: {sec.goal}. "
+                                            + (f"СЛОВАРЬ ПРИЁМОВ (можно использовать любые, подбирай под настроение секции):\n{vocab.prompt_section('rich', with_params=False)}\n"
+                                               "Для картинок можно задавать grade (цвет числами), camera (движение камеры с easing), effects как {id, amount}; "
+                                               "для карточек text_anim.\n\n" if self.mode == "rich" else "")
+                                            + f"Сейчас собери ТОЛЬКО секцию «{sec.name}» (до неё: {prev}, после: {nxt}). Цель: {sec.goal}. "
                                             f"Визуальный стиль: {getattr(sec, 'visual_style', '')}. Главная мысль, которая должна прозвучать в подписи или карточке: «{getattr(sec, 'key_message', '')}». Длительность секции около {sec.target_seconds} с.\n"
                                             "Кадр kind=picture: asset (id из списка), seconds 0.8-6, motion и look (меняй их от кадра к кадру под настроение секции), caption (до 60 символов, может быть пустой) со стилем и позицией, effects (0-2).\n"
                                             "Кадр kind=card: полноэкранная карточка, asset=\"\", card_title (до 28 символов), card_subtitle, card_style, seconds 1.5-3.\n"
@@ -433,7 +445,7 @@ class Agent:
         return out
 
     def run(self):
-        self.ev.emit("run_start", task=self.task, model=self.llm.model_name(), tools=[t["function"]["name"] for t in POLISH_TOOLS],
+        self.ev.emit("run_start", task=self.task, model=self.llm.model_name(), tools=[t["function"]["name"] for t in POLISH_TOOLS], vocab=self.mode, fetch=self.fetch,
                      assets_dir=str(self.assets_dir), briefs=[str(b) for b in self.briefs], seconds=self.seconds, slots=self.slots)
         ok, reason, out = False, "", None
         try:
