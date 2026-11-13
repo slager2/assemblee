@@ -35,9 +35,9 @@ class FakeLLM:
         props = schema["properties"]
         if "sections" in props:
             out = {"title": "Dry run", "concept": "test", "sections": [
-                {"name": "intro", "goal": "зацепить", "target_seconds": 4, "music": "dark_drone", "music_db": -10, "visual_style": "glitch"},
-                {"name": "middle", "goal": "показать", "target_seconds": 8, "music": "chiptune", "music_db": -10, "visual_style": "bright"},
-                {"name": "ending", "goal": "финал", "target_seconds": 4, "music": "epic", "music_db": -8, "visual_style": "dark"}]}
+                {"name": "intro", "goal": "зацепить", "target_seconds": 4, "music": "dark_drone", "music_db": -10, "visual_style": "glitch", "asset_group": "any", "transition_in": "glitch"},
+                {"name": "middle", "goal": "показать", "target_seconds": 8, "music": "chiptune", "music_db": -10, "visual_style": "bright", "asset_group": "server-beast", "transition_in": "whip"},
+                {"name": "ending", "goal": "финал", "target_seconds": 4, "music": "epic", "music_db": -8, "visual_style": "dark", "asset_group": "spider", "transition_in": "flash"}]}
         elif "shots" in props:
             ids = [x for x in props["shots"]["items"]["properties"]["asset"]["enum"] if x]
             out = {"shots": [{"kind": "card", "asset": "", "seconds": 2, "card_title": "Заголовок", "card_subtitle": "подзаголовок", "card_style": "glitch",
