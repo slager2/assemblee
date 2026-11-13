@@ -335,6 +335,7 @@ def bench(args):
           f"tg {res['tg_tps']} t/s over {res['gen_tokens']} tok"
           + (f", accept {res.get('accept_rate')}" if "accept_rate" in res else ""), file=sys.stderr)
 
+    nxt = None
     # 3b. the turn after that: history + the call the model really generated + its result.
     #     Shows whether generated tokens are reused (re-rendered template == generated text).
     if first["tool_calls"] and not args.concurrent:
@@ -374,7 +375,15 @@ def bench(args):
             res["vision_answer"] = v.get("text", "")[:120]
             if v.get("err"):
                 res["vision_err"] = v["err"]
-            print(f"[{args.label}] vision {res['vision_s']}s ok={v.get('ok')} {res['vision_answer']}", file=sys.stderr)
+            print(f"[{args.label}] vision {res['vision_s']}s ok={v.get('ok')} {res['vision_answer']!r}", file=sys.stderr)
+            # 5. agent turn right after the vision request: with one slot the agent's KV was
+            #    swapped out to the RAM prompt cache (or dropped if it did not fit --cache-ram)
+            if nxt is not None and v.get("ok"):
+                r = cl.chat_stream(dict(common, messages=nxt, max_tokens=1))
+                res["ttft_after_vision_s"] = r3(r["ttft"])
+                res["after_vision_prompt_n"] = r["timings"].get("prompt_n")
+                print(f"[{args.label}] agent turn after vision: ttft {r['ttft']:.3f}s "
+                      f"(reprocessed {res['after_vision_prompt_n']})", file=sys.stderr)
 
     try:
         props = cl.get("/props")
